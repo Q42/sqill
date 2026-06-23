@@ -3,25 +3,10 @@ package registry
 import "strings"
 
 var defaultRegistry = map[string]SkillEntry{
-	"github-search": {
-		Name:        "github-search",
-		Source:      "https://github.com/org/github-search-skill.git",
-		Description: "Search GitHub repositories",
-	},
-	"jira": {
-		Name:        "jira",
-		Source:      "git@github.com:org/jira-skill.git",
-		Description: "Interact with Jira issues",
-	},
-	"postgres": {
-		Name:        "postgres",
-		Source:      "file:///opt/skills/postgres",
-		Description: "Postgres database helpers",
-	},
-	"example-tgz": {
-		Name:        "example-tgz",
-		Source:      "https://example.com/skill.tar.gz",
-		Description: "Example tarball-distributed skill",
+	"sRegressor": {
+		Name:        "sRegressor",
+		Source:      "https://github.com/@Q42/sRegressor.git",
+		Description: "Run regression tests directly in your project.",
 	},
 }
 
