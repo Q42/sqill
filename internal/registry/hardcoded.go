@@ -5,7 +5,7 @@ import "strings"
 var defaultRegistry = map[string]SkillEntry{
 	"sRegressor": {
 		Name:        "sRegressor",
-		Source:      "https://github.com/@Q42/sRegressor.git",
+		Source:      "https://github.com/Q42/sRegressor.git",
 		Description: "Run regression tests directly in your project.",
 	},
 }

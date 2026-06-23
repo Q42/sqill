@@ -1,12 +1,10 @@
 package source
 
 import (
-	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
-
-	gogit "github.com/go-git/go-git/v5"
 )
 
 type Git struct{}
@@ -20,25 +18,14 @@ func (g *Git) Fetch(source string, dest string) error {
 		return fmt.Errorf("create dest parent: %w", err)
 	}
 
-	tmp, err := os.MkdirTemp(filepath.Dir(dest), ".git-")
-	if err != nil {
-		return fmt.Errorf("temp: %w", err)
-	}
-	tmpClone := filepath.Join(tmp, "repo")
+	os.RemoveAll(dest)
 
-	_, err = gogit.PlainCloneContext(context.Background(), tmpClone, false, &gogit.CloneOptions{
-		URL:      source,
-		Progress: nil,
-	})
-	if err != nil {
-		os.RemoveAll(tmp)
+	cmd := exec.Command("git", "clone", source, dest)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("git clone %q: %w", source, err)
 	}
-
-	if err := os.Rename(tmpClone, dest); err != nil {
-		os.RemoveAll(tmp)
-		return fmt.Errorf("rename clone: %w", err)
-	}
-	os.RemoveAll(tmp)
 	return nil
 }

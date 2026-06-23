@@ -4,7 +4,7 @@ import "testing"
 
 func TestHardcodedResolve(t *testing.T) {
 	r := NewHardcoded()
-	e, err := r.Resolve("github-search")
+	e, err := r.Resolve("sRegressor")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -22,12 +22,12 @@ func TestHardcodedSearch(t *testing.T) {
 	if len(all) != len(defaultRegistry) {
 		t.Fatalf("expected %d entries, got %d", len(defaultRegistry), len(all))
 	}
-	git := r.Search("github")
+	git := r.Search("sRegressor")
 	if len(git) == 0 {
-		t.Fatal("expected at least one github match")
+		t.Fatal("expected at least one match")
 	}
 	for _, e := range git {
-		if !contains(e.Name, "github") && !contains(e.Description, "github") {
+		if !contains(e.Name, "sRegressor") && !contains(e.Description, "sRegressor") {
 			t.Fatalf("unexpected match %+v", e)
 		}
 	}
