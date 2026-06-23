@@ -22,15 +22,15 @@ type Installer struct {
 func New(reg registry.Provider, store metadata.Store, skillsDir string) *Installer {
 	return &Installer{
 		registry:  reg,
-		sources:   defaultSources(),
+		sources:   nil,
 		store:     store,
 		skillsDir: skillsDir,
 	}
 }
 
-func defaultSources() map[source.Type]source.Provider {
+func defaultSources(skillName string) map[source.Type]source.Provider {
 	return map[source.Type]source.Provider{
-		source.TypeGit:     source.NewGit(),
+		source.TypeGit:     source.NewGit(skillName),
 		source.TypeLocal:   source.NewLocal(),
 		source.TypeArchive: source.NewArchive(),
 	}
@@ -64,7 +64,7 @@ func (i *Installer) Install(name string, force bool) error {
 	if err != nil {
 		return err
 	}
-	prov, ok := i.sources[stype]
+	prov, ok := i.getSources(name)[stype]
 	if !ok {
 		return fmt.Errorf("no provider for source type %q", stype)
 	}
@@ -109,4 +109,13 @@ func (i *Installer) Install(name string, force bool) error {
 
 func (i *Installer) SkillDir(name string) string {
 	return filepath.Join(i.skillsDir, name)
+}
+
+func (i *Installer) getSources(skillName string) map[source.Type]source.Provider {
+	if i.sources == nil {
+		i.sources = defaultSources(skillName)
+		return i.sources
+	}
+	i.sources[source.TypeGit] = source.NewGit(skillName)
+	return i.sources
 }

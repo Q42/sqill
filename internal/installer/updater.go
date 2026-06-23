@@ -22,7 +22,7 @@ func (i *Installer) Update(name string) error {
 	if err != nil {
 		return err
 	}
-	prov, ok := i.sources[stype]
+	prov, ok := i.getSources(name)[stype]
 	if !ok {
 		return fmt.Errorf("no provider for source type %q", stype)
 	}
