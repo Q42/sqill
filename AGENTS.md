@@ -32,32 +32,39 @@ go vet ./...                      # lint
 - Errors are returned, never panicked, except in `main.go` for fatal startup failures.
 - Zero external configuration needed to run — registry is hardcoded.
 
+## Hard rule: do not touch the git state
+
+The agent is not allowed to run `git add`, `git commit`, `git push`,
+The user manages the git state.
+
+**Exception:** the `q-release` skill is the only context in which the agent may run `git add`, `git commit`, `git push`, and `git tag` — and only for the release notes file and the release tag. No other workflow, fix, or change gets this exception.
+
 ## Key files
 
-| File                                          | Purpose                                                               |
-| --------------------------------------------- | --------------------------------------------------------------------- |
-| `main.go`                                     | Entry point, calls `cmd.Execute()`                                    |
-| `src/cmd/cmd.go`                              | Root cobra command + subcommand wiring + init guard                   |
-| `src/cmd/init/init.go`                        | `init` command: create state file + tool symlinks                     |
-| `src/cmd/install/install.go`                  | `install [<name>]` command — installs one skill, or all from `sqill.json` when called with no args |
-| `src/cmd/remove/remove.go`                    | `remove <name>` command                                               |
-| `src/cmd/update/update.go`                    | `update <name>` command                                               |
-| `src/cmd/list/list.go`                         | `list` command                                                        |
-| `src/cmd/info/info.go`                        | `info <name>` command                                                 |
-| `src/cmd/track/track.go`                      | `track <name>` command — include a skill dir in git                   |
-| `src/cmd/untrack/untrack.go`                  | `untrack <name>` command — exclude a skill dir from git               |
-| `src/cmd/upgrade/upgrade.go`                  | `upgrade` command — replace the running `sqill` binary with the latest release |
-| `src/lib/runtime/runtime.go`                   | Shared `Runtime` struct (skillsDir, store, installer, registry)       |
-| `src/lib/registry/hardcoded.go`               | Hardcoded `map[string]string` of skill name → source URL              |
-| `src/lib/metadata/store.go`                   | Read/write `.agents/skills/sqill.json`                                |
-| `src/lib/installer/installer.go`              | Orchestrate resolve → fetch → flatten subdir → validate → install/update → write metadata |
-| `src/lib/installer/staging.go`                | Shared `fetchAndStage` helper used by both `Install` and `Update` (handles subdir flattening) |
-| `src/lib/upgrader/upgrader.go`                | Self-update logic: resolve latest tag, download tarball, extract binary, replace executable |
-| `src/lib/buildinfo/buildinfo.go`              | Holds the `Version` variable injected at build time via `-ldflags "-X sqill/src/lib/buildinfo.Version=..."` |
-| `src/lib/utils/utils.go`                       | Shared helpers (path display, validation, safe join, dedup)        |
-| `.github/workflows/release.yml`                | Tag-triggered release: build for macOS/Linux × amd64/arm64, publish release with body from `.github/release-notes/v<tag>.md` |
-| `.github/release-notes/vX.Y.Z.md`              | Curated release notes for tag `vX.Y.Z`, rendered by the `q-release` skill |
-| `.agents/skills/q-release/`                    | Installed (gitignored) `q-release` skill — walks Conventional Commits since the last published tag and produces the next release's notes file |
+| File                              | Purpose                                                                                                                                       |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `main.go`                         | Entry point, calls `cmd.Execute()`                                                                                                            |
+| `src/cmd/cmd.go`                  | Root cobra command + subcommand wiring + init guard                                                                                           |
+| `src/cmd/init/init.go`            | `init` command: create state file + tool symlinks                                                                                             |
+| `src/cmd/install/install.go`      | `install [<name>]` command — installs one skill, or all from `sqill.json` when called with no args                                            |
+| `src/cmd/remove/remove.go`        | `remove <name>` command                                                                                                                       |
+| `src/cmd/update/update.go`        | `update <name>` command                                                                                                                       |
+| `src/cmd/list/list.go`            | `list` command                                                                                                                                |
+| `src/cmd/info/info.go`            | `info <name>` command                                                                                                                         |
+| `src/cmd/track/track.go`          | `track <name>` command — include a skill dir in git                                                                                           |
+| `src/cmd/untrack/untrack.go`      | `untrack <name>` command — exclude a skill dir from git                                                                                       |
+| `src/cmd/upgrade/upgrade.go`      | `upgrade` command — replace the running `sqill` binary with the latest release                                                                |
+| `src/lib/runtime/runtime.go`      | Shared `Runtime` struct (skillsDir, store, installer, registry)                                                                               |
+| `src/lib/registry/hardcoded.go`   | Hardcoded `map[string]string` of skill name → source URL                                                                                      |
+| `src/lib/metadata/store.go`       | Read/write `.agents/skills/sqill.json`                                                                                                        |
+| `src/lib/installer/installer.go`  | Orchestrate resolve → fetch → flatten subdir → validate → install/update → write metadata                                                     |
+| `src/lib/installer/staging.go`    | Shared `fetchAndStage` helper used by both `Install` and `Update` (handles subdir flattening)                                                 |
+| `src/lib/upgrader/upgrader.go`    | Self-update logic: resolve latest tag, download tarball, extract binary, replace executable                                                   |
+| `src/lib/buildinfo/buildinfo.go`  | Holds the `Version` variable injected at build time via `-ldflags "-X sqill/src/lib/buildinfo.Version=..."`                                   |
+| `src/lib/utils/utils.go`          | Shared helpers (path display, validation, safe join, dedup)                                                                                   |
+| `.github/workflows/release.yml`   | Tag-triggered release: build for macOS/Linux × amd64/arm64, publish release with body from `.github/release-notes/v<tag>.md`                  |
+| `.github/release-notes/vX.Y.Z.md` | Curated release notes for tag `vX.Y.Z`, rendered by the `q-release` skill                                                                     |
+| `.agents/skills/q-release/`       | Installed (gitignored) `q-release` skill — walks Conventional Commits since the last published tag and produces the next release's notes file |
 
 ## Data model
 
@@ -76,7 +83,12 @@ go vet ./...                      # lint
 ```json
 {
   "installed": {
-    "<name>": { "version": "...", "source": "...", "installed_at": "...", "tracked": true }
+    "<name>": {
+      "version": "...",
+      "source": "...",
+      "installed_at": "...",
+      "tracked": true
+    }
   },
   "registries": []
 }
@@ -109,8 +121,8 @@ Tag-triggered CI publishes binaries and a GitHub release. The release body comes
 ### Flow
 
 1. Use the `q-release` skill to render notes into `.github/release-notes/vX.Y.Z.md` (categorized by Conventional Commits prefix).
-2. Commit the notes file on the default branch and push.
-3. Create and push the tag: `git tag -a vX.Y.Z -m vX.Y.Z && git push origin vX.Y.Z`.
+2. The user commits the notes file on the default branch and pushes it.
+3. The user creates and pushes the tag: `git tag -a vX.Y.Z -m vX.Y.Z && git push origin vX.Y.Z`.
 4. `.github/workflows/release.yml` builds artifacts and creates the release, reading the body from `.github/release-notes/<tag>.md` via `softprops/action-gh-release@v2`'s `body_path`.
 
 ### Hard rules
