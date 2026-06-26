@@ -1,96 +1,69 @@
-# Sqill — Agent Skill Registry CLI
+# sqill
 
-Sqill is a single-binary CLI tool for installing, updating, removing, and discovering agent skills — reusable packages of prompts, templates, and tools that extend AI agents.
-
-Sqill is currently only supported for Q42 internal usage. If succesful, let's share it with the world!
+A CLI for installing and managing [agent skills](https://kilo.ai/docs) — reusable bundles of prompts, templates, and tools that extend AI agents.
 
 ## Install
 
 ```bash
-go build -o /usr/local/bin/sqill .
+curl -fsSL https://raw.githubusercontent.com/Q42/sqill/main/install.sh | sh
 ```
 
-## Quick start
+To pin a version: append `--version v0.1.0`. Falls back to `~/.local/bin` if it can't write to `/usr/local/bin`.
+
+## Usage
 
 ```bash
-sqill init
-sqill search github
-sqill install github-search
-sqill list
-sqill info github-search
-sqill update github-search
-sqill remove github-search --force
+sqill init                       # one-time: create .agents/skills/
+sqill search github              # find skills in the registry
+sqill install github-search      # install one
+sqill list                       # show installed skills
+sqill info github-search         # manifest, source, install metadata
+sqill update github-search       # pull latest
+sqill remove github-search       # uninstall (prompts; --force to skip)
+sqill install my-skill --source git@github.com:you/my-skill.git  # from any git/url
 ```
 
-## Setup
+`init` also offers to symlink `.claude/skills`, `.cursor/skills`, and `.kilo/skills` into `.agents/skills/` so your skills are visible to every agent.
 
-All commands except `init` require `.agents/skills/sqill.json` to exist. Run `sqill init` once per project to:
+| Flag                       | Effect                                           |
+| -------------------------- | ------------------------------------------------ |
+| `--skills-dir <path>`      | Override the skills directory (default `.agents/skills`) |
+| `--yes` / `-y`             | Skip interactive prompts                         |
+| `--force`                  | Overwrite an existing install                    |
+| `--source <url>`           | Install from a specific git/file/archive URL     |
 
-1. Create `.agents/skills/` and `.agents/skills/sqill.json`. If the state file already exists, `init` reports it as already initialized and skips recreation.
-2. Optionally symlink `.claude/skills`, `.cursor/skills`, and `.kilo/skills` into `.agents/skills`. `init` prompts for each; pass `--link-claude`, `--link-cursor`, `--link-kilo` to pre-select, or `--yes` to skip all prompts.
+## Build a skill
 
-If a target like `.claude/skills` already exists as a directory, its contents are moved into `.agents/skills` and the directory is replaced with a symlink. If the existing directory contains a skill whose name already lives in `.agents/skills`, `init` refuses and tells you to de-duplicate first.
+A skill is just a directory containing a `sqill.json` manifest. The minimum:
 
-## Commands
-
-| Command                        | Description                                        |
-| ------------------------------ | -------------------------------------------------- |
-| `sqill init`                   | Initialize `.agents/skills/` and optional symlinks |
-| `sqill install <name>`         | Install a skill from the registry                  |
-| `sqill install <name> --force` | Overwrite an existing skill                        |
-| `sqill remove <name>`          | Delete an installed skill and its metadata         |
-| `sqill update <name>`          | Fetch latest version and replace atomically        |
-| `sqill list`                   | Show all installed skills (name, version, date)    |
-| `sqill search <query>`         | Find matching skills in the registry               |
-| `sqill info <name>`            | Display manifest, source, and install metadata     |
-
-## Example directory layout
-
-```
-.agents/
-  skills/
-    sqill.json               ← installed metadata (versions, sources, timestamps)
-    github-search/            ← installed skill
-      sqill.json              ← skill manifest (name, version, description)
-      SKILL.md
-    jira/
-      sqill.json
-    postgres/
-      sqill.json
-.claude/skills  → ../.agents/skills    (symlink created by `sqill init`)
-.cursor/skills  → ../.agents/skills    (symlink created by `sqill init`)
-.kilo/skills    → ../.agents/skills    (symlink created by `sqill init`)
+```json
+{
+  "name": "my-skill",
+  "version": "0.1.0",
+  "description": "What it does, in one line."
+}
 ```
 
-All state lives under `.agents/skills/`. No databases, no daemons.
+Add any files you want next to it — `SKILL.md` is conventional for the prompt/instructions your agent should read. The directory name must match the `name`.
 
-## Using Sqill as a git repository
+Host it anywhere `sqill` knows how to fetch from:
 
-You can manage your skills as a git repository for version control, collaboration, and CI/CD.
+| Source                      | Notes                                |
+| --------------------------- | ------------------------------------ |
+| `https://.../repo.git`      | Cloned with go-git                   |
+| `git@github.com:.../repo.git` | Same, over SSH                     |
+| `file:///path/to/skill`     | Copied locally                       |
+| `https://.../skill.tar.gz`  | Downloaded and extracted             |
+
+To add a skill to the built-in registry, edit `src/lib/registry/hardcoded.go` and open a PR.
+
+## Develop
+
+Requires Go 1.25+.
 
 ```bash
-git init .agents/skills
-git add -A
-git commit -m "Add skills"
+go build -o sqill .
+go test ./...
 ```
 
-### Installing skills from your own git repo
-
-```bash
-sqill install my-skill --source git@github.com:your-org/my-skill.git
-```
-
-### Updating from remote
-
-```bash
-sqill update my-skill
-```
-
-### Sharing skills with your team
-
-Add `.agents/skills/` to a team git repo so everyone gets the same skills:
-
-```bash
-git clone git@github.com:your-org/shared-skills.git .agents/skills
-sqill list
-```
+To cut a release: `git tag v0.1.0 && git push --tags`. `.github/workflows/release.yml` builds and publishes binaries for macOS and Linux (amd64, arm64).
