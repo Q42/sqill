@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"sqill/src/lib/utils"
 )
 
 func TestDetect(t *testing.T) {
@@ -102,14 +104,14 @@ func TestExtractTarGz(t *testing.T) {
 
 func TestSafeJoin(t *testing.T) {
 	root := t.TempDir()
-	good, err := safeJoin(root, "a/b.txt")
+	good, err := utils.SafeJoin(root, "a/b.txt")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !filepath.IsAbs(good) {
 		t.Fatalf("expected absolute, got %q", good)
 	}
-	if _, err := safeJoin(root, "../escape"); err == nil {
+	if _, err := utils.SafeJoin(root, "../escape"); err == nil {
 		t.Fatal("expected error for path traversal")
 	}
 }

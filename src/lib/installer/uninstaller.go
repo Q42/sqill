@@ -3,10 +3,12 @@ package installer
 import (
 	"fmt"
 	"os"
+
+	"sqill/src/lib/utils"
 )
 
 func (i *Installer) Remove(name string) error {
-	if err := ValidateName(name); err != nil {
+	if err := utils.ValidateName(name); err != nil {
 		return err
 	}
 	if !i.store.IsInstalled(name) {

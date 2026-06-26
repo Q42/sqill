@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"os"
 
-	"sqill/internal/metadata"
-	"sqill/internal/source"
+	"sqill/src/lib/metadata"
+	"sqill/src/lib/source"
+	"sqill/src/lib/utils"
 )
 
 func (i *Installer) Update(name string) error {
-	if err := ValidateName(name); err != nil {
+	if err := utils.ValidateName(name); err != nil {
 		return err
 	}
 
@@ -22,7 +23,7 @@ func (i *Installer) Update(name string) error {
 	if err != nil {
 		return err
 	}
-	prov, ok := i.getSources(name)[stype]
+	prov, ok := i.getSources()[stype]
 	if !ok {
 		return fmt.Errorf("no provider for source type %q", stype)
 	}

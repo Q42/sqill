@@ -1,7 +1,7 @@
 package main
 
 import (
-	"sqill/cmd"
+	"sqill/src/cmd"
 )
 
 func main() {

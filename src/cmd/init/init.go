@@ -1,4 +1,4 @@
-package cmd
+package init
 
 import (
 	"errors"
@@ -12,7 +12,8 @@ import (
 	"github.com/charmbracelet/huh"
 	"github.com/spf13/cobra"
 
-	"sqill/internal/metadata"
+	"sqill/src/lib/metadata"
+	"sqill/src/lib/utils"
 )
 
 type linkTarget struct {
@@ -29,19 +30,19 @@ func defaultLinkTargets(baseDir string) []linkTarget {
 	}
 }
 
-type setupOptions struct {
-	skillsDir  string
-	linkClaude bool
-	linkCursor bool
-	linkKilo   bool
-	yes        bool
+type Options struct {
+	SkillsDir  string
+	LinkClaude bool
+	LinkCursor bool
+	LinkKilo   bool
+	Yes        bool
 }
 
-func newSetupCmd() *cobra.Command {
-	opts := &setupOptions{}
+func NewCmd() *cobra.Command {
+	opts := &Options{}
 
 	cmd := &cobra.Command{
-		Use:   "setup",
+		Use:   "init",
 		Short: "Initialize .agents/skills and optionally create tool symlinks",
 		Long:  "Creates .agents/skills/sqill.json if missing, then optionally symlinks .claude/skills, .cursor/skills, and .kilo/skills into it.",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -49,27 +50,27 @@ func newSetupCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			opts.skillsDir = dir
-			return runSetup(cmd, opts)
+			opts.SkillsDir = dir
+			return run(cmd, opts)
 		},
 	}
 
-	cmd.Flags().BoolVar(&opts.linkClaude, "link-claude", false, "Symlink .claude/skills into .agents/skills")
-	cmd.Flags().BoolVar(&opts.linkCursor, "link-cursor", false, "Symlink .cursor/skills into .agents/skills")
-	cmd.Flags().BoolVar(&opts.linkKilo, "link-kilo", false, "Symlink .kilo/skills into .agents/skills")
-	cmd.Flags().BoolVar(&opts.yes, "yes", false, "Skip prompts (no symlinks by default)")
+	cmd.Flags().BoolVar(&opts.LinkClaude, "link-claude", false, "Symlink .claude/skills into .agents/skills")
+	cmd.Flags().BoolVar(&opts.LinkCursor, "link-cursor", false, "Symlink .cursor/skills into .agents/skills")
+	cmd.Flags().BoolVar(&opts.LinkKilo, "link-kilo", false, "Symlink .kilo/skills into .agents/skills")
+	cmd.Flags().BoolVar(&opts.Yes, "yes", false, "Skip prompts (no symlinks by default)")
 
 	return cmd
 }
 
-func runSetup(cmd *cobra.Command, opts *setupOptions) error {
+func run(cmd *cobra.Command, opts *Options) error {
 	out := cmd.OutOrStderr()
 
-	skillsDir, err := filepath.Abs(opts.skillsDir)
+	skillsDir, err := filepath.Abs(opts.SkillsDir)
 	if err != nil {
 		return fmt.Errorf("resolve skills dir: %w", err)
 	}
-	skillsDirRel, _ := filepath.Rel(cwdEval(), skillsDir)
+	skillsDirRel, _ := filepath.Rel(utils.CwdEval(), skillsDir)
 
 	statePath := filepath.Join(skillsDir, metadata.StateFileName)
 	stateExists := false
@@ -79,20 +80,24 @@ func runSetup(cmd *cobra.Command, opts *setupOptions) error {
 		return fmt.Errorf("check state file: %w", err)
 	}
 
+	if stateExists {
+		fmt.Fprintf(out, "✓ %s is already initialized (%s exists)\n", utils.DisplayPath(skillsDir), metadata.StateFileName)
+	}
+
 	baseDir := filepath.Dir(filepath.Dir(skillsDir))
 	targets := defaultLinkTargets(baseDir)
 
-	flagsProvided := opts.linkClaude || opts.linkCursor || opts.linkKilo
-	interactive := !flagsProvided && !opts.yes
+	flagsProvided := opts.LinkClaude || opts.LinkCursor || opts.LinkKilo
+	interactive := !flagsProvided && !opts.Yes && !stateExists
 
 	if interactive {
-		if err := promptSetup(cmd, skillsDirRel, targets, opts); err != nil {
+		if err := prompt(cmd, skillsDirRel, targets, opts); err != nil {
 			return err
 		}
-	} else if opts.yes && !flagsProvided {
-		opts.linkClaude = false
-		opts.linkCursor = false
-		opts.linkKilo = false
+	} else if opts.Yes && !flagsProvided {
+		opts.LinkClaude = false
+		opts.LinkCursor = false
+		opts.LinkKilo = false
 	}
 
 	if !stateExists {
@@ -106,9 +111,7 @@ func runSetup(cmd *cobra.Command, opts *setupOptions) error {
 		if err := store.Save(metadata.NewState()); err != nil {
 			return fmt.Errorf("write state: %w", err)
 		}
-		fmt.Fprintf(out, "✓ Created %s\n", displayPath(statePath))
-	} else {
-		fmt.Fprintf(out, "• %s already exists\n", displayPath(statePath))
+		fmt.Fprintf(out, "✓ Created %s\n", utils.DisplayPath(statePath))
 	}
 
 	planned := plannedLinks(opts, targets)
@@ -120,7 +123,7 @@ func runSetup(cmd *cobra.Command, opts *setupOptions) error {
 	fmt.Fprintln(out)
 	fmt.Fprintln(out, "Setting up symlinks:")
 	for _, t := range planned {
-		fmt.Fprintf(out, "  → %s\n", displayPath(t.path))
+		fmt.Fprintf(out, "  → %s\n", utils.DisplayPath(t.path))
 	}
 	fmt.Fprintln(out)
 
@@ -138,7 +141,7 @@ func runSetup(cmd *cobra.Command, opts *setupOptions) error {
 	return nil
 }
 
-func promptSetup(cmd *cobra.Command, skillsDirRel string, targets []linkTarget, opts *setupOptions) error {
+func prompt(cmd *cobra.Command, skillsDirRel string, targets []linkTarget, opts *Options) error {
 	claude := new(bool)
 	cursor := new(bool)
 	kilo := new(bool)
@@ -146,7 +149,7 @@ func promptSetup(cmd *cobra.Command, skillsDirRel string, targets []linkTarget, 
 	form := huh.NewForm(
 		huh.NewGroup(
 			huh.NewNote().
-				Title("Sqill setup").
+				Title("Sqill init").
 				Description(fmt.Sprintf("Initializing %s\n\nChoose which tool directories to symlink into the shared skills folder.", skillsDirRel)),
 			huh.NewConfirm().
 				Title("Symlink Claude skills?").
@@ -171,31 +174,31 @@ func promptSetup(cmd *cobra.Command, skillsDirRel string, targets []linkTarget, 
 
 	if err := form.Run(); err != nil {
 		if errors.Is(err, huh.ErrUserAborted) {
-			return fmt.Errorf("setup cancelled")
+			return fmt.Errorf("init cancelled")
 		}
 		return err
 	}
 
-	opts.linkClaude = *claude
-	opts.linkCursor = *cursor
-	opts.linkKilo = *kilo
+	opts.LinkClaude = *claude
+	opts.LinkCursor = *cursor
+	opts.LinkKilo = *kilo
 	return nil
 }
 
-func plannedLinks(opts *setupOptions, targets []linkTarget) []linkTarget {
+func plannedLinks(opts *Options, targets []linkTarget) []linkTarget {
 	var out []linkTarget
 	for _, t := range targets {
 		switch t.name {
 		case "claude":
-			if opts.linkClaude {
+			if opts.LinkClaude {
 				out = append(out, t)
 			}
 		case "cursor":
-			if opts.linkCursor {
+			if opts.LinkCursor {
 				out = append(out, t)
 			}
 		case "kilo":
-			if opts.linkKilo {
+			if opts.LinkKilo {
 				out = append(out, t)
 			}
 		}
@@ -210,30 +213,30 @@ func createSymlink(skillsDir, linkPath string, out io.Writer) error {
 		return makeSymlink(skillsDir, linkPath, out)
 	}
 	if err != nil {
-		return fmt.Errorf("check %s: %w", displayPath(linkPath), err)
+		return fmt.Errorf("check %s: %w", utils.DisplayPath(linkPath), err)
 	}
 
 	if info.Mode()&os.ModeSymlink != 0 {
-		fmt.Fprintf(out, "• %s already a symlink, skipped\n", displayPath(linkPath))
+		fmt.Fprintf(out, "• %s already a symlink, skipped\n", utils.DisplayPath(linkPath))
 		return nil
 	}
 	if !info.IsDir() {
-		return fmt.Errorf("%s exists and is not a directory", displayPath(linkPath))
+		return fmt.Errorf("%s exists and is not a directory", utils.DisplayPath(linkPath))
 	}
 
-	dupes, err := findDuplicates(skillsDir, linkPath)
+	dupes, err := utils.FindDuplicates(skillsDir, linkPath)
 	if err != nil {
 		return err
 	}
 	if len(dupes) > 0 {
-		return fmt.Errorf("cannot link %s — duplicate skill(s): %s. Please de-duplicate and run setup again", displayPath(linkPath), strings.Join(dupes, ", "))
+		return fmt.Errorf("cannot link %s — duplicate skill(s): %s. Please de-duplicate and run init again", utils.DisplayPath(linkPath), strings.Join(dupes, ", "))
 	}
 
-	if err := moveContents(linkPath, skillsDir); err != nil {
-		return fmt.Errorf("move contents of %s: %w", displayPath(linkPath), err)
+	if err := utils.MoveContents(linkPath, skillsDir); err != nil {
+		return fmt.Errorf("move contents of %s: %w", utils.DisplayPath(linkPath), err)
 	}
 	if err := os.Remove(linkPath); err != nil {
-		return fmt.Errorf("remove %s: %w", displayPath(linkPath), err)
+		return fmt.Errorf("remove %s: %w", utils.DisplayPath(linkPath), err)
 	}
 
 	return makeSymlink(skillsDir, linkPath, out)
@@ -241,98 +244,15 @@ func createSymlink(skillsDir, linkPath string, out io.Writer) error {
 
 func makeSymlink(skillsDir, linkPath string, out io.Writer) error {
 	if err := os.MkdirAll(filepath.Dir(linkPath), 0o755); err != nil {
-		return fmt.Errorf("mkdir parent of %s: %w", displayPath(linkPath), err)
+		return fmt.Errorf("mkdir parent of %s: %w", utils.DisplayPath(linkPath), err)
 	}
 	rel, err := filepath.Rel(filepath.Dir(linkPath), skillsDir)
 	if err != nil {
-		return fmt.Errorf("relative path for %s: %w", displayPath(linkPath), err)
+		return fmt.Errorf("relative path for %s: %w", utils.DisplayPath(linkPath), err)
 	}
 	if err := os.Symlink(rel, linkPath); err != nil {
-		return fmt.Errorf("symlink %s -> %s: %w", displayPath(linkPath), rel, err)
+		return fmt.Errorf("symlink %s -> %s: %w", utils.DisplayPath(linkPath), rel, err)
 	}
-	fmt.Fprintf(out, "✓ %s -> %s\n", displayPath(linkPath), displayPath(filepath.Join(filepath.Dir(linkPath), rel)))
+	fmt.Fprintf(out, "✓ %s -> %s\n", utils.DisplayPath(linkPath), utils.DisplayPath(filepath.Join(filepath.Dir(linkPath), rel)))
 	return nil
-}
-
-func findDuplicates(skillsDir, linkPath string) ([]string, error) {
-	existing, err := subdirNames(linkPath)
-	if err != nil {
-		return nil, err
-	}
-	target, err := subdirNames(skillsDir)
-	if err != nil {
-		return nil, err
-	}
-	targetSet := make(map[string]struct{}, len(target))
-	for _, n := range target {
-		targetSet[n] = struct{}{}
-	}
-	var dupes []string
-	for _, n := range existing {
-		if _, ok := targetSet[n]; ok {
-			dupes = append(dupes, n)
-		}
-	}
-	sort.Strings(dupes)
-	return dupes, nil
-}
-
-func subdirNames(dir string) ([]string, error) {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return nil, err
-	}
-	var names []string
-	for _, e := range entries {
-		if e.IsDir() {
-			names = append(names, e.Name())
-		}
-	}
-	return names, nil
-}
-
-func moveContents(src, dst string) error {
-	entries, err := os.ReadDir(src)
-	if err != nil {
-		return err
-	}
-	for _, e := range entries {
-		s := filepath.Join(src, e.Name())
-		d := filepath.Join(dst, e.Name())
-		if err := os.Rename(s, d); err != nil {
-			return fmt.Errorf("rename %s -> %s: %w", displayPath(s), displayPath(d), err)
-		}
-	}
-	return nil
-}
-
-func cwd() string {
-	dir, err := os.Getwd()
-	if err != nil {
-		return "."
-	}
-	return dir
-}
-
-func displayPath(path string) string {
-	cwd := cwdEval()
-	resolved, err := filepath.EvalSymlinks(path)
-	if err != nil {
-		resolved = path
-	}
-	if rel, err := filepath.Rel(cwd, resolved); err == nil && !strings.HasPrefix(rel, "..") {
-		return rel
-	}
-	return path
-}
-
-func cwdEval() string {
-	dir, err := os.Getwd()
-	if err != nil {
-		return "."
-	}
-	if resolved, err := filepath.EvalSymlinks(dir); err == nil {
-		return resolved
-	}
-	return dir
 }

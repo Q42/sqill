@@ -9,11 +9,11 @@ Sqill is a Go CLI tool: single static binary, no database, no daemons. It instal
 
 ## Setup workflow
 
-All commands except `setup` require `.agents/skills/sqill.json` to exist. Running `sqill setup` will:
+All commands except `init` require `.agents/skills/sqill.json` to exist. Running `sqill init` will:
 
-1. Create `.agents/skills/` and `.agents/skills/sqill.json` if missing (idempotent).
-2. Optionally symlink `.claude/skills`, `.cursor/skills`, and `.kilo/skills` (siblings of `.agents/`) into `.agents/skills`. The user is prompted per target; `--link-claude`, `--link-cursor`, `--link-kilo` pre-select, `--yes` skips prompts.
-3. If a target dir already exists, its contents are moved into `.agents/skills/` and the dir is replaced with a symlink. If both directories contain a skill with the same name, setup fails and asks the user to de-duplicate.
+1. Create `.agents/skills/` and `.agents/skills/sqill.json` if missing (idempotent). If the state file already exists, `init` prints "already initialized" and skips creation.
+2. Optionally symlink `.claude/skills`, `.cursor/skills`, and `.kilo/skills` (siblings of `.agents/`) into `.agents/skills`. The user is prompted per target unless `--yes` is passed or flags pre-select (`--link-claude`, `--link-cursor`, `--link-kilo`); when already initialized, prompting is skipped.
+3. If a target dir already exists, its contents are moved into `.agents/skills/` and the dir is replaced with a symlink. If both directories contain a skill with the same name, `init` fails and asks the user to de-duplicate.
 
 ## Build + test
 
@@ -26,21 +26,29 @@ go vet ./...                      # lint
 ## Coding conventions
 
 - **No comments** unless strictly necessary.
-- Standard Go project layout: `cmd/` for CLI entry points, `internal/` for non-exported packages.
+- Standard Go project layout: `src/cmd/` for CLI entry points, `src/lib/` for non-exported packages.
 - Interfaces: `RegistryProvider`, `SourceProvider`, `MetadataStore`.
 - Errors are returned, never panicked, except in `main.go` for fatal startup failures.
 - Zero external configuration needed to run — registry is hardcoded.
 
 ## Key files
 
-| File                              | Purpose                                                           |
-| --------------------------------- | ----------------------------------------------------------------- |
-| `cmd/cmd.go`                      | Root cobra command + subcommand registration + init guard         |
-| `cmd/setup.go`                    | `setup` command: init state file + create tool symlinks           |
-| `internal/registry/hardcoded.go`  | Hardcoded `map[string]string` of skill name → source URL          |
-| `internal/metadata/store.go`      | Read/write `.agents/skills/sqill.json`                            |
-| `internal/installer/installer.go` | Orchestrate resolve → fetch → validate → install → write metadata |
-| `main.go`                         | Entry point, calls `cmd.Execute()`                                |
+| File                                          | Purpose                                                               |
+| --------------------------------------------- | --------------------------------------------------------------------- |
+| `main.go`                                     | Entry point, calls `cmd.Execute()`                                    |
+| `src/cmd/cmd.go`                              | Root cobra command + subcommand wiring + init guard                   |
+| `src/cmd/init/init.go`                        | `init` command: create state file + tool symlinks                     |
+| `src/cmd/install/install.go`                  | `install <name>` command                                              |
+| `src/cmd/remove/remove.go`                    | `remove <name>` command                                               |
+| `src/cmd/update/update.go`                    | `update <name>` command                                               |
+| `src/cmd/list/list.go`                         | `list` command                                                        |
+| `src/cmd/search/search.go`                    | `search <query>` command                                              |
+| `src/cmd/info/info.go`                        | `info <name>` command                                                 |
+| `src/lib/runtime/runtime.go`                   | Shared `Runtime` struct (skillsDir, store, installer, registry)       |
+| `src/lib/registry/hardcoded.go`               | Hardcoded `map[string]string` of skill name → source URL              |
+| `src/lib/metadata/store.go`                   | Read/write `.agents/skills/sqill.json`                                |
+| `src/lib/installer/installer.go`              | Orchestrate resolve → fetch → validate → install → write metadata     |
+| `src/lib/utils/utils.go`                       | Shared helpers (path display, validation, safe join, dedup)           |
 
 ## Data model
 

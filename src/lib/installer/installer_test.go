@@ -5,20 +5,21 @@ import (
 	"path/filepath"
 	"testing"
 
-	"sqill/internal/metadata"
-	"sqill/internal/registry"
+	"sqill/src/lib/metadata"
+	"sqill/src/lib/registry"
+	"sqill/src/lib/utils"
 )
 
 func TestValidateName(t *testing.T) {
 	good := []string{"abc", "x1", "with-dash", "with_under"}
 	for _, n := range good {
-		if err := ValidateName(n); err != nil {
+		if err := utils.ValidateName(n); err != nil {
 			t.Errorf("expected ok for %q, got %v", n, err)
 		}
 	}
 	bad := []string{"", ".dot", "..", "../escape", "a/b", `a\b`, "a..b"}
 	for _, n := range bad {
-		if err := ValidateName(n); err == nil {
+		if err := utils.ValidateName(n); err == nil {
 			t.Errorf("expected error for %q", n)
 		}
 	}

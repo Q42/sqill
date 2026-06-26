@@ -1,21 +1,20 @@
 package installer
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
-	"sqill/internal/metadata"
-	"sqill/internal/registry"
-	"sqill/internal/source"
+	"sqill/src/lib/metadata"
+	"sqill/src/lib/registry"
+	"sqill/src/lib/source"
+	"sqill/src/lib/utils"
 )
 
 type Installer struct {
-	registry registry.Provider
-	sources  map[source.Type]source.Provider
-	store    metadata.Store
+	registry  registry.Provider
+	sources   map[source.Type]source.Provider
+	store     metadata.Store
 	skillsDir string
 }
 
@@ -28,26 +27,16 @@ func New(reg registry.Provider, store metadata.Store, skillsDir string) *Install
 	}
 }
 
-func defaultSources(skillName string) map[source.Type]source.Provider {
+func defaultSources() map[source.Type]source.Provider {
 	return map[source.Type]source.Provider{
-		source.TypeGit:     source.NewGit(skillName),
+		source.TypeGit:     source.NewGit(""),
 		source.TypeLocal:   source.NewLocal(),
 		source.TypeArchive: source.NewArchive(),
 	}
 }
 
-func ValidateName(name string) error {
-	if name == "" {
-		return errors.New("skill name is empty")
-	}
-	if strings.Contains(name, "..") || strings.ContainsAny(name, `/\`) || strings.HasPrefix(name, ".") {
-		return fmt.Errorf("invalid skill name %q", name)
-	}
-	return nil
-}
-
 func (i *Installer) Install(name string, force bool) error {
-	if err := ValidateName(name); err != nil {
+	if err := utils.ValidateName(name); err != nil {
 		return err
 	}
 
@@ -64,7 +53,7 @@ func (i *Installer) Install(name string, force bool) error {
 	if err != nil {
 		return err
 	}
-	prov, ok := i.getSources(name)[stype]
+	prov, ok := i.getSources()[stype]
 	if !ok {
 		return fmt.Errorf("no provider for source type %q", stype)
 	}
@@ -111,11 +100,11 @@ func (i *Installer) SkillDir(name string) string {
 	return filepath.Join(i.skillsDir, name)
 }
 
-func (i *Installer) getSources(skillName string) map[source.Type]source.Provider {
+func (i *Installer) getSources() map[source.Type]source.Provider {
 	if i.sources == nil {
-		i.sources = defaultSources(skillName)
+		i.sources = defaultSources()
 		return i.sources
 	}
-	i.sources[source.TypeGit] = source.NewGit(skillName)
+	i.sources[source.TypeGit] = source.NewGit("")
 	return i.sources
 }

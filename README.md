@@ -6,8 +6,6 @@ Sqill is currently only supported for Q42 internal usage. If succesful, let's sh
 
 ## Install
 
-Temporary.
-
 ```bash
 go build -o /usr/local/bin/sqill .
 ```
@@ -15,7 +13,7 @@ go build -o /usr/local/bin/sqill .
 ## Quick start
 
 ```bash
-sqill setup
+sqill init
 sqill search github
 sqill install github-search
 sqill list
@@ -26,18 +24,18 @@ sqill remove github-search --force
 
 ## Setup
 
-All commands except `setup` require `.agents/skills/sqill.json` to exist. Run `sqill setup` once per project to:
+All commands except `init` require `.agents/skills/sqill.json` to exist. Run `sqill init` once per project to:
 
-1. Create `.agents/skills/` and `.agents/skills/sqill.json`.
-2. Optionally symlink `.claude/skills`, `.cursor/skills`, and `.kilo/skills` into `.agents/skills`. Setup prompts for each; pass `--link-claude`, `--link-cursor`, `--link-kilo` to pre-select, or `--yes` to skip all prompts.
+1. Create `.agents/skills/` and `.agents/skills/sqill.json`. If the state file already exists, `init` reports it as already initialized and skips recreation.
+2. Optionally symlink `.claude/skills`, `.cursor/skills`, and `.kilo/skills` into `.agents/skills`. `init` prompts for each; pass `--link-claude`, `--link-cursor`, `--link-kilo` to pre-select, or `--yes` to skip all prompts.
 
-If a target like `.claude/skills` already exists as a directory, its contents are moved into `.agents/skills` and the directory is replaced with a symlink. If the existing directory contains a skill whose name already lives in `.agents/skills`, setup refuses and tells you to de-duplicate first.
+If a target like `.claude/skills` already exists as a directory, its contents are moved into `.agents/skills` and the directory is replaced with a symlink. If the existing directory contains a skill whose name already lives in `.agents/skills`, `init` refuses and tells you to de-duplicate first.
 
 ## Commands
 
 | Command                        | Description                                        |
 | ------------------------------ | -------------------------------------------------- |
-| `sqill setup`                  | Initialize `.agents/skills/` and optional symlinks |
+| `sqill init`                   | Initialize `.agents/skills/` and optional symlinks |
 | `sqill install <name>`         | Install a skill from the registry                  |
 | `sqill install <name> --force` | Overwrite an existing skill                        |
 | `sqill remove <name>`          | Delete an installed skill and its metadata         |
@@ -46,7 +44,7 @@ If a target like `.claude/skills` already exists as a directory, its contents ar
 | `sqill search <query>`         | Find matching skills in the registry               |
 | `sqill info <name>`            | Display manifest, source, and install metadata     |
 
-## Example directory Layout
+## Example directory layout
 
 ```
 .agents/
@@ -59,24 +57,40 @@ If a target like `.claude/skills` already exists as a directory, its contents ar
       sqill.json
     postgres/
       sqill.json
-.claude/skills  → ../.agents/skills    (symlink created by `sqill setup`)
-.cursor/skills  → ../.agents/skills    (symlink created by `sqill setup`)
-.kilo/skills    → ../.agents/skills    (symlink created by `sqill setup`)
+.claude/skills  → ../.agents/skills    (symlink created by `sqill init`)
+.cursor/skills  → ../.agents/skills    (symlink created by `sqill init`)
+.kilo/skills    → ../.agents/skills    (symlink created by `sqill init`)
 ```
 
 All state lives under `.agents/skills/`. No databases, no daemons.
 
-## Registry
+## Using Sqill as a git repository
 
-The registry is the catalog mapping skill names to sources. Currently hardcoded in the binary.
+You can manage your skills as a git repository for version control, collaboration, and CI/CD.
 
-## Architecture
+```bash
+git init .agents/skills
+git add -A
+git commit -m "Add skills"
+```
 
-```text
-cmd/          — cobra CLI commands
-internal/
-  registry/   — RegistryProvider interface + hardcoded impl
-  source/     — SourceProvider interface (git, file, archive)
-  installer/  — install/remove/update orchestration
-  metadata/   — sqill.json read/write store
+### Installing skills from your own git repo
+
+```bash
+sqill install my-skill --source git@github.com:your-org/my-skill.git
+```
+
+### Updating from remote
+
+```bash
+sqill update my-skill
+```
+
+### Sharing skills with your team
+
+Add `.agents/skills/` to a team git repo so everyone gets the same skills:
+
+```bash
+git clone git@github.com:your-org/shared-skills.git .agents/skills
+sqill list
 ```

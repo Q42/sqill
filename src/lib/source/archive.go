@@ -8,8 +8,9 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
+
+	"sqill/src/lib/utils"
 )
 
 type Archive struct {
@@ -71,7 +72,7 @@ func (a *Archive) Fetch(source string, dest string) error {
 		return err
 	}
 
-	root, err := singleRootDir(tmpExtract)
+	root, err := utils.SingleRootDir(tmpExtract)
 	if err != nil {
 		os.RemoveAll(tmp)
 		return err
@@ -108,7 +109,7 @@ func extractTarGz(archivePath, dest string) error {
 			return fmt.Errorf("tar next: %w", err)
 		}
 
-		target, err := safeJoin(dest, hdr.Name)
+		target, err := utils.SafeJoin(dest, hdr.Name)
 		if err != nil {
 			return err
 		}
@@ -144,40 +145,4 @@ func extractTarGz(archivePath, dest string) error {
 		}
 	}
 	return nil
-}
-
-func safeJoin(root, name string) (string, error) {
-	if strings.HasPrefix(name, "/") || strings.HasPrefix(name, `\`) {
-		return "", fmt.Errorf("unsafe path %q", name)
-	}
-	parts := strings.Split(filepath.ToSlash(name), "/")
-	for _, p := range parts {
-		if p == ".." {
-			return "", fmt.Errorf("unsafe path %q", name)
-		}
-	}
-	target := filepath.Join(root, name)
-	rel, err := filepath.Rel(root, target)
-	if err != nil {
-		return "", fmt.Errorf("unsafe path %q: %w", name, err)
-	}
-	if strings.HasPrefix(rel, "..") {
-		return "", fmt.Errorf("unsafe path %q", name)
-	}
-	return target, nil
-}
-
-func singleRootDir(dir string) (string, error) {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return "", fmt.Errorf("read extract: %w", err)
-	}
-	if len(entries) != 1 {
-		return "", fmt.Errorf("archive must contain a single root directory, got %d", len(entries))
-	}
-	root := filepath.Join(dir, entries[0].Name())
-	if !entries[0].IsDir() {
-		return "", fmt.Errorf("archive root %q is not a directory", entries[0].Name())
-	}
-	return root, nil
 }
