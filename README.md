@@ -1,5 +1,8 @@
 # sqill
 
+> **⚠️ The registry of installable skills is hardcoded into the binary.**
+> Adding a new skill today requires editing `src/lib/registry/hardcoded.go` and shipping a new release of sqill itself. There is no external registry, no pluggable source, and no way for end users to add skills to the catalog without recompiling. Skills can still be installed ad hoc via `sqill install <name> --source <url>`, but the curated registry ships in-binary.
+
 A CLI for installing and managing [agent skills](https://kilo.ai/docs) — reusable bundles of prompts, templates, and tools that extend AI agents.
 
 ## Install
@@ -23,6 +26,16 @@ sqill install my-skill --source git@github.com:you/my-skill.git  # from any git/
 ```
 
 `init` also offers to symlink `.claude/skills`, `.cursor/skills`, and `.kilo/skills` into `.agents/skills/` so your skills are visible to every agent.
+
+## How does it work
+
+Sqill is a thin wrapper around standard tools — it does no networking or authentication of its own.
+
+- **Git sources** are cloned by shelling out to your system `git`. SSH keys, HTTPS credentials, host-key checks, proxies, and 2FA are all handled by git itself, using whatever is already configured on your machine (`~/.ssh/config`, `~/.gitconfig`, credential helpers, `gh auth login`, etc.).
+- **Local sources** are copied straight from the filesystem.
+- **Archive sources** are downloaded over HTTPS with Go's standard library.
+
+Because access control is delegated to git, nothing extra is required to install skills from private repos: if `git clone <url>` works in your shell, `sqill install <name>` will work, and any auth prompt (SSH passphrase, GitHub device login, credential helper, …) is the same one git would have shown you directly.
 
 | Flag                       | Effect                                           |
 | -------------------------- | ------------------------------------------------ |
@@ -49,7 +62,7 @@ Host it anywhere `sqill` knows how to fetch from:
 
 | Source                      | Notes                                |
 | --------------------------- | ------------------------------------ |
-| `https://.../repo.git`      | Cloned with go-git                   |
+| `https://.../repo.git`      | Cloned via system `git`              |
 | `git@github.com:.../repo.git` | Same, over SSH                     |
 | `file:///path/to/skill`     | Copied locally                       |
 | `https://.../skill.tar.gz`  | Downloaded and extracted             |

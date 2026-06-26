@@ -15,6 +15,7 @@ import (
 	"sqill/src/cmd/remove"
 	"sqill/src/cmd/search"
 	"sqill/src/cmd/update"
+	"sqill/src/lib/buildinfo"
 	"sqill/src/lib/metadata"
 	"sqill/src/lib/runtime"
 )
