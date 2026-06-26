@@ -29,7 +29,7 @@ ASSET="${BINARY}_${OS}_${ARCH}.tar.gz"
 if [ "${1:-}" = "--version" ] && [ "${2:-}" != "" ]; then
 	TAG="$2"
 else
-	TAG="$(curl -fsSL -o /dev/null -w '%{redirect_url}' "https://github.com/${REPO}/releases/latest" \
+	TAG="$(curl -fsS -o /dev/null -w '%{redirect_url}' "https://github.com/${REPO}/releases/latest" \
 		| sed 's|.*/tag/||')"
 	[ -n "$TAG" ] || { echo "error: could not determine latest release" >&2; exit 1; }
 fi
