@@ -270,3 +270,146 @@ func TestInfoShowsManifest(t *testing.T) {
 		t.Fatalf("info failed: %v", err)
 	}
 }
+
+func TestInitWritesGitignore(t *testing.T) {
+	skills := t.TempDir()
+
+	root := NewRoot()
+	root.SetArgs([]string{"--skills-dir", skills, "init", "--yes"})
+	root.SetOut(&bytes.Buffer{})
+	root.SetErr(&bytes.Buffer{})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(skills, metadata.GitignoreFileName))
+	if err != nil {
+		t.Fatalf("expected .gitignore: %v", err)
+	}
+	if !strings.Contains(string(data), "Managed by sqill") {
+		t.Fatalf("missing header, got %q", string(data))
+	}
+}
+
+func TestTrackUpdatesGitignore(t *testing.T) {
+	skills := t.TempDir()
+	seedSkillDir(t, skills, "x")
+	if err := os.WriteFile(filepath.Join(skills, metadata.StateFileName), []byte(`{"installed":{},"registries":[]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	store, _ := metadata.NewFileStore(skills)
+	_ = store.Add("x", metadata.InstalledEntry{Version: "1.0.0", Source: "local", InstalledAt: metadata.Now()})
+
+	root := NewRoot()
+	root.SetArgs([]string{"--skills-dir", skills, "track", "x"})
+	root.SetOut(&bytes.Buffer{})
+	root.SetErr(&bytes.Buffer{})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("track: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(skills, metadata.GitignoreFileName))
+	if err != nil {
+		t.Fatalf("expected .gitignore: %v", err)
+	}
+	if strings.Contains(string(data), "x/") {
+		t.Fatalf("x should not be ignored after track, got %q", string(data))
+	}
+}
+
+func TestUntrackUpdatesGitignore(t *testing.T) {
+	skills := t.TempDir()
+	seedSkillDir(t, skills, "x")
+	if err := os.WriteFile(filepath.Join(skills, metadata.StateFileName), []byte(`{"installed":{},"registries":[]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	store, _ := metadata.NewFileStore(skills)
+	_ = store.Add("x", metadata.InstalledEntry{Version: "1.0.0", Source: "local", InstalledAt: metadata.Now()})
+	_ = store.Track("x")
+	_ = metadata.SyncGitignore(skills)
+
+	root := NewRoot()
+	root.SetArgs([]string{"--skills-dir", skills, "untrack", "x"})
+	root.SetOut(&bytes.Buffer{})
+	root.SetErr(&bytes.Buffer{})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("untrack: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(skills, metadata.GitignoreFileName))
+	if err != nil {
+		t.Fatalf("expected .gitignore: %v", err)
+	}
+	if !strings.Contains(string(data), "x/\n") {
+		t.Fatalf("x should be ignored after untrack, got %q", string(data))
+	}
+}
+
+func TestTrackRejectsUnknownSkill(t *testing.T) {
+	skills := t.TempDir()
+	if err := os.WriteFile(filepath.Join(skills, metadata.StateFileName), []byte(`{"installed":{},"registries":[]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	root := NewRoot()
+	root.SetArgs([]string{"--skills-dir", skills, "track", "missing"})
+	if err := root.Execute(); err == nil {
+		t.Fatal("expected error tracking non-installed skill")
+	}
+}
+
+func seedSkillDir(t *testing.T, skillsDir, name string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Join(skillsDir, name), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(skillsDir, name, "sqill.json"), []byte(`{"name":"`+name+`","version":"1.0.0"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestInstallNoArgsEmptyState(t *testing.T) {
+	skills := t.TempDir()
+	if err := os.MkdirAll(skills, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(skills, metadata.StateFileName), []byte(`{"installed":{},"registries":[]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	root := NewRoot()
+	buf := &bytes.Buffer{}
+	root.SetOut(buf)
+	root.SetErr(buf)
+	root.SetArgs([]string{"--skills-dir", skills, "install"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("install: %v", err)
+	}
+	if !strings.Contains(buf.String(), "No skills to install") {
+		t.Fatalf("expected message, got %q", buf.String())
+	}
+}
+
+func TestVersionFlag(t *testing.T) {
+	root := NewRoot()
+	buf := &bytes.Buffer{}
+	root.SetOut(buf)
+	root.SetErr(buf)
+	root.SetArgs([]string{"--version"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("--version: %v", err)
+	}
+	if !strings.Contains(buf.String(), "sqill version") {
+		t.Fatalf("expected version output, got %q", buf.String())
+	}
+}
+
+func TestUpgradeDoesNotRequireState(t *testing.T) {
+	root := NewRoot()
+	root.SetOut(&bytes.Buffer{})
+	root.SetErr(&bytes.Buffer{})
+	root.SetArgs([]string{"--skills-dir", "/no/such/dir", "upgrade", "--help"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("upgrade --help should not require state file: %v", err)
+	}
+}

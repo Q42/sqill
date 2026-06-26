@@ -45,6 +45,8 @@ go vet ./...                      # lint
 | `src/cmd/list/list.go`                         | `list` command                                                        |
 | `src/cmd/search/search.go`                    | `search <query>` command                                              |
 | `src/cmd/info/info.go`                        | `info <name>` command                                                 |
+| `src/cmd/track/track.go`                      | `track <name>` command — include a skill dir in git                   |
+| `src/cmd/untrack/untrack.go`                  | `untrack <name>` command — exclude a skill dir from git               |
 | `src/lib/runtime/runtime.go`                   | Shared `Runtime` struct (skillsDir, store, installer, registry)       |
 | `src/lib/registry/hardcoded.go`               | Hardcoded `map[string]string` of skill name → source URL              |
 | `src/lib/metadata/store.go`                   | Read/write `.agents/skills/sqill.json`                                |
@@ -73,9 +75,12 @@ go vet ./...                      # lint
   "installed": {
     "<name>": { "version": "...", "source": "...", "installed_at": "..." }
   },
-  "registries": []
+  "registries": [],
+  "tracked": ["<name>"]
 }
 ```
+
+`tracked` is the explicit allowlist of skill directories included in git. When absent or empty, every installed skill is listed in `.agents/skills/.gitignore` (default behavior). `sqill track <name>` adds `<name>`; `sqill untrack <name>` removes it. `.gitignore` is regenerated on every `init`, `install`, `remove`, `track`, and `untrack`.
 
 ### Registry (in binary)
 

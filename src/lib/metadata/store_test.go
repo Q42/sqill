@@ -3,6 +3,7 @@ package metadata
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -112,5 +113,152 @@ func TestSortedNames(t *testing.T) {
 	names := SortedNames(state)
 	if len(names) != 3 || names[0] != "a" || names[1] != "b" || names[2] != "c" {
 		t.Fatalf("got %v", names)
+	}
+}
+
+func TestFileStoreTrackUntrack(t *testing.T) {
+	dir := t.TempDir()
+	s, _ := NewFileStore(dir)
+	_ = s.Add("foo", InstalledEntry{Version: "1.0.0"})
+	_ = s.Add("bar", InstalledEntry{Version: "1.0.0"})
+
+	if err := s.Track("foo"); err != nil {
+		t.Fatal(err)
+	}
+	if !s.IsTracked("foo") {
+		t.Fatal("foo should be tracked")
+	}
+	if s.IsTracked("bar") {
+		t.Fatal("bar should not be tracked")
+	}
+
+	if err := s.Track("foo"); err != nil {
+		t.Fatalf("re-tracking should be idempotent, got %v", err)
+	}
+
+	state, _ := s.Load()
+	if len(state.Tracked) != 1 || state.Tracked[0] != "foo" {
+		t.Fatalf("expected tracked=[foo], got %v", state.Tracked)
+	}
+
+	if err := s.Untrack("foo"); err != nil {
+		t.Fatal(err)
+	}
+	if s.IsTracked("foo") {
+		t.Fatal("foo should be untracked")
+	}
+	if err := s.Untrack("foo"); err != nil {
+		t.Fatalf("untracking untracked skill should be idempotent, got %v", err)
+	}
+}
+
+func TestFileStoreTrackRejectsMissing(t *testing.T) {
+	dir := t.TempDir()
+	s, _ := NewFileStore(dir)
+	if err := s.Track("missing"); err == nil {
+		t.Fatal("expected error tracking non-installed skill")
+	}
+}
+
+func TestFileStoreTrackRejectsInvalidName(t *testing.T) {
+	dir := t.TempDir()
+	s, _ := NewFileStore(dir)
+	if err := s.Track("../escape"); err == nil {
+		t.Fatal("expected error for invalid name")
+	}
+}
+
+func TestFileStoreRemoveClearsTracked(t *testing.T) {
+	dir := t.TempDir()
+	s, _ := NewFileStore(dir)
+	_ = s.Add("foo", InstalledEntry{Version: "1.0.0"})
+	if err := s.Track("foo"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Remove("foo"); err != nil {
+		t.Fatal(err)
+	}
+	state, _ := s.Load()
+	if len(state.Tracked) != 0 {
+		t.Fatalf("expected tracked to be empty after remove, got %v", state.Tracked)
+	}
+}
+
+func TestSyncGitignoreDefaultIgnoresAll(t *testing.T) {
+	dir := t.TempDir()
+	s, _ := NewFileStore(dir)
+	_ = s.Add("foo", InstalledEntry{Version: "1.0.0"})
+	_ = s.Add("bar", InstalledEntry{Version: "1.0.0"})
+
+	if err := SyncGitignore(dir); err != nil {
+		t.Fatal(err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, GitignoreFileName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(data)
+	if !strings.Contains(content, "Managed by sqill") {
+		t.Fatalf("missing header, got %q", content)
+	}
+	if !strings.Contains(content, "foo/\n") || !strings.Contains(content, "bar/\n") {
+		t.Fatalf("expected foo/ and bar/ ignored, got %q", content)
+	}
+}
+
+func TestSyncGitignoreExcludesTracked(t *testing.T) {
+	dir := t.TempDir()
+	s, _ := NewFileStore(dir)
+	_ = s.Add("foo", InstalledEntry{Version: "1.0.0"})
+	_ = s.Add("bar", InstalledEntry{Version: "1.0.0"})
+	_ = s.Track("foo")
+
+	if err := SyncGitignore(dir); err != nil {
+		t.Fatal(err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, GitignoreFileName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(data)
+	if strings.Contains(content, "foo/") {
+		t.Fatalf("foo should not be ignored, got %q", content)
+	}
+	if !strings.Contains(content, "bar/\n") {
+		t.Fatalf("bar should be ignored, got %q", content)
+	}
+}
+
+func TestSyncGitignoreEmptyInstalls(t *testing.T) {
+	dir := t.TempDir()
+	_, _ = NewFileStore(dir)
+	if err := SyncGitignore(dir); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, GitignoreFileName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "Managed by sqill") {
+		t.Fatalf("missing header, got %q", string(data))
+	}
+}
+
+func TestSyncGitignoreSkipsUnknownTracked(t *testing.T) {
+	dir := t.TempDir()
+	s, _ := NewFileStore(dir)
+	state, _ := s.Load()
+	state.Tracked = []string{"ghost"}
+	if err := s.Save(state); err != nil {
+		t.Fatal(err)
+	}
+	if err := SyncGitignore(dir); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(filepath.Join(dir, GitignoreFileName))
+	if strings.Contains(string(data), "ghost") {
+		t.Fatalf("tracked-but-uninstalled skill should not appear, got %q", string(data))
 	}
 }
