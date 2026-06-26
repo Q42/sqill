@@ -184,6 +184,44 @@ func TestInstallSubdirResolution(t *testing.T) {
 	}
 }
 
+func TestUpdateSubdirResolution(t *testing.T) {
+	src := t.TempDir()
+	inner := filepath.Join(src, "x")
+	if err := os.MkdirAll(inner, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(inner, "sqill.json"), []byte(`{"name":"x","version":"1.0.0","description":"d"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(inner, "SKILL.md"), []byte("hi"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	skills := t.TempDir()
+	store, _ := metadata.NewFileStore(skills)
+	reg := &fakeReg{source: "file://" + src}
+	inst := New(reg, store, skills)
+
+	if err := inst.Install("x", false); err != nil {
+		t.Fatalf("install: %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(inner, "sqill.json"), []byte(`{"name":"x","version":"2.0.0","description":"d"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := inst.Update("x"); err != nil {
+		t.Fatalf("update: %v", err)
+	}
+
+	if _, err := os.Stat(filepath.Join(skills, "x", "sqill.json")); err != nil {
+		t.Fatalf("sqill.json not flattened: %v", err)
+	}
+	got, _ := store.Get("x")
+	if got.Version != "2.0.0" {
+		t.Fatalf("expected 2.0.0, got %s", got.Version)
+	}
+}
+
 func TestInstallNoManifestAnywhere(t *testing.T) {
 	src := t.TempDir()
 	for _, sub := range []string{"x", "skill", "sqill"} {

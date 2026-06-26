@@ -5,7 +5,6 @@ import (
 	"os"
 
 	"sqill/src/lib/metadata"
-	"sqill/src/lib/source"
 	"sqill/src/lib/utils"
 )
 
@@ -19,34 +18,16 @@ func (i *Installer) Update(name string) error {
 		return err
 	}
 
-	stype, err := source.Detect(entry.Source)
-	if err != nil {
-		return err
-	}
-	prov, ok := i.getSources()[stype]
-	if !ok {
-		return fmt.Errorf("no provider for source type %q", stype)
-	}
-
 	target := i.SkillDir(name)
 	tmp := target + ".new"
 	if err := os.RemoveAll(tmp); err != nil {
 		return fmt.Errorf("clear tmp: %w", err)
 	}
 
-	if err := prov.Fetch(entry.Source, tmp); err != nil {
-		os.RemoveAll(tmp)
-		return err
-	}
-
-	manifest, err := metadata.LoadManifest(tmp)
+	manifest, err := i.fetchAndStage(name, entry.Source, tmp)
 	if err != nil {
 		os.RemoveAll(tmp)
-		return fmt.Errorf("validate manifest: %w", err)
-	}
-	if manifest.Name != name {
-		os.RemoveAll(tmp)
-		return fmt.Errorf("manifest name %q does not match requested %q", manifest.Name, name)
+		return err
 	}
 
 	if err := os.RemoveAll(target); err != nil {

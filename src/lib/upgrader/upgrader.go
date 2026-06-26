@@ -76,7 +76,10 @@ func LatestTag(client HTTPDoer, repo string) (string, error) {
 	if repo == "" {
 		repo = DefaultRepo
 	}
-	url := fmt.Sprintf("https://github.com/%s/releases/latest", repo)
+	return LatestTagAtURL(client, fmt.Sprintf("https://github.com/%s/releases/latest", repo))
+}
+
+func LatestTagAtURL(client HTTPDoer, url string) (string, error) {
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return "", fmt.Errorf("build request: %w", err)
@@ -96,11 +99,12 @@ func LatestTag(client HTTPDoer, repo string) (string, error) {
 }
 
 func tagFromURL(rawURL string) string {
-	i := strings.LastIndex(rawURL, "/tag/")
+	const marker = "/releases/tag/"
+	i := strings.Index(rawURL, marker)
 	if i < 0 {
 		return ""
 	}
-	return rawURL[i+len("/tag/"):]
+	return rawURL[i+len(marker):]
 }
 
 func normalizeTag(tag string) string {

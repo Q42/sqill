@@ -35,6 +35,7 @@ func TestTagFromURL(t *testing.T) {
 		{"https://github.com/Q42/sqill/releases/tag/v0.1.0", "v0.1.0"},
 		{"https://github.com/Q42/sqill/releases/tag/v1.2.3-rc1", "v1.2.3-rc1"},
 		{"https://example.com/no/tag/here", ""},
+		{"", ""},
 	}
 	for _, c := range cases {
 		if got := tagFromURL(c.in); got != c.want {
@@ -72,9 +73,9 @@ func TestLatestTag(t *testing.T) {
 		},
 	}
 
-	got, err := LatestTag(client, "Q42/sqill")
+	got, err := LatestTagAtURL(client, srv.URL+"/releases/latest")
 	if err != nil {
-		t.Fatalf("LatestTag: %v", err)
+		t.Fatalf("LatestTagAtURL: %v", err)
 	}
 	if got != "v9.9.9" {
 		t.Errorf("got %q, want v9.9.9", got)
@@ -94,9 +95,9 @@ func TestLatestTagFallsBackToRedirectClient(t *testing.T) {
 		},
 	}
 
-	got, err := LatestTag(client, "Q42/sqill")
+	got, err := LatestTagAtURL(client, srv.URL+"/releases/latest")
 	if err != nil {
-		t.Fatalf("LatestTag: %v", err)
+		t.Fatalf("LatestTagAtURL: %v", err)
 	}
 	if got != "v1.2.3" {
 		t.Errorf("got %q, want v1.2.3", got)

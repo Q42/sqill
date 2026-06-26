@@ -117,26 +117,25 @@ func run(cmd *cobra.Command, opts *Options) error {
 	planned := plannedLinks(opts, targets)
 	if len(planned) == 0 {
 		fmt.Fprintln(out, "• No symlinks requested")
-		return nil
-	}
-
-	fmt.Fprintln(out)
-	fmt.Fprintln(out, "Setting up symlinks:")
-	for _, t := range planned {
-		fmt.Fprintf(out, "  → %s\n", utils.DisplayPath(t.path))
-	}
-	fmt.Fprintln(out)
-
-	for _, t := range planned {
-		if err := createSymlink(skillsDir, t.path, out); err != nil {
-			return err
+	} else {
+		fmt.Fprintln(out)
+		fmt.Fprintln(out, "Setting up symlinks:")
+		for _, t := range planned {
+			fmt.Fprintf(out, "  → %s\n", utils.DisplayPath(t.path))
 		}
-	}
+		fmt.Fprintln(out)
 
-	fmt.Fprintln(out)
-	fmt.Fprintln(out, "Done. Skills installed under .agents/skills will be visible to:")
-	for _, t := range planned {
-		fmt.Fprintf(out, "  • %s\n", t.label)
+		for _, t := range planned {
+			if err := createSymlink(skillsDir, t.path, out); err != nil {
+				return err
+			}
+		}
+
+		fmt.Fprintln(out)
+		fmt.Fprintln(out, "Done. Skills installed under .agents/skills will be visible to:")
+		for _, t := range planned {
+			fmt.Fprintf(out, "  • %s\n", t.label)
+		}
 	}
 
 	if err := metadata.SyncGitignore(skillsDir); err != nil {

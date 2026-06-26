@@ -39,18 +39,21 @@ go vet ./...                      # lint
 | `main.go`                                     | Entry point, calls `cmd.Execute()`                                    |
 | `src/cmd/cmd.go`                              | Root cobra command + subcommand wiring + init guard                   |
 | `src/cmd/init/init.go`                        | `init` command: create state file + tool symlinks                     |
-| `src/cmd/install/install.go`                  | `install <name>` command                                              |
+| `src/cmd/install/install.go`                  | `install [<name>]` command — installs one skill, or all from `sqill.json` when called with no args |
 | `src/cmd/remove/remove.go`                    | `remove <name>` command                                               |
 | `src/cmd/update/update.go`                    | `update <name>` command                                               |
 | `src/cmd/list/list.go`                         | `list` command                                                        |
-| `src/cmd/search/search.go`                    | `search <query>` command                                              |
 | `src/cmd/info/info.go`                        | `info <name>` command                                                 |
 | `src/cmd/track/track.go`                      | `track <name>` command — include a skill dir in git                   |
 | `src/cmd/untrack/untrack.go`                  | `untrack <name>` command — exclude a skill dir from git               |
+| `src/cmd/upgrade/upgrade.go`                  | `upgrade` command — replace the running `sqill` binary with the latest release |
 | `src/lib/runtime/runtime.go`                   | Shared `Runtime` struct (skillsDir, store, installer, registry)       |
 | `src/lib/registry/hardcoded.go`               | Hardcoded `map[string]string` of skill name → source URL              |
 | `src/lib/metadata/store.go`                   | Read/write `.agents/skills/sqill.json`                                |
-| `src/lib/installer/installer.go`              | Orchestrate resolve → fetch → validate → install → write metadata     |
+| `src/lib/installer/installer.go`              | Orchestrate resolve → fetch → flatten subdir → validate → install/update → write metadata |
+| `src/lib/installer/staging.go`                | Shared `fetchAndStage` helper used by both `Install` and `Update` (handles subdir flattening) |
+| `src/lib/upgrader/upgrader.go`                | Self-update logic: resolve latest tag, download tarball, extract binary, replace executable |
+| `src/lib/buildinfo/buildinfo.go`              | Holds the `Version` variable injected at build time via `-ldflags "-X sqill/src/lib/buildinfo.Version=..."` |
 | `src/lib/utils/utils.go`                       | Shared helpers (path display, validation, safe join, dedup)        |
 | `.github/workflows/release.yml`                | Tag-triggered release: build for macOS/Linux × amd64/arm64, publish release with body from `.github/release-notes/v<tag>.md` |
 | `.github/release-notes/vX.Y.Z.md`              | Curated release notes for tag `vX.Y.Z`, rendered by the `q-release` skill |

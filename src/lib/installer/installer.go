@@ -49,19 +49,6 @@ func (i *Installer) Install(name string, force bool) error {
 		return fmt.Errorf("skill %q already installed (use --force to overwrite)", name)
 	}
 
-	stype, err := source.Detect(entry.Source)
-	if err != nil {
-		return err
-	}
-	prov, ok := i.getSources()[stype]
-	if !ok {
-		return fmt.Errorf("no provider for source type %q", stype)
-	}
-
-	if err := os.MkdirAll(i.skillsDir, 0o755); err != nil {
-		return fmt.Errorf("create skills dir: %w", err)
-	}
-
 	target := filepath.Join(i.skillsDir, name)
 	if force {
 		if err := os.RemoveAll(target); err != nil {
@@ -69,38 +56,15 @@ func (i *Installer) Install(name string, force bool) error {
 		}
 	}
 
-	if err := prov.Fetch(entry.Source, target); err != nil {
+	manifest, err := i.fetchAndStage(name, entry.Source, target)
+	if err != nil {
 		return err
 	}
 
-	manifestDir, err := pickManifestDir(target, name)
-	if err != nil {
-		os.RemoveAll(target)
-		return fmt.Errorf("validate manifest: %w", err)
-	}
-	if manifestDir != target {
-		if err := utils.MoveContents(manifestDir, target); err != nil {
-			os.RemoveAll(target)
-			return fmt.Errorf("flatten subdir: %w", err)
-		}
-		os.RemoveAll(manifestDir)
-	}
-
-	manifest, err := metadata.LoadManifest(target)
-	if err != nil {
-		os.RemoveAll(target)
-		return fmt.Errorf("validate manifest: %w", err)
-	}
-	if manifest.Name != name {
-		os.RemoveAll(target)
-		return fmt.Errorf("manifest name %q does not match requested %q", manifest.Name, name)
-	}
-
-	now := metadata.Now()
 	if err := i.store.Add(name, metadata.InstalledEntry{
 		Version:     manifest.Version,
 		Source:      entry.Source,
-		InstalledAt: now,
+		InstalledAt: metadata.Now(),
 		Description: manifest.Description,
 	}); err != nil {
 		os.RemoveAll(target)

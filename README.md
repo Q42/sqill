@@ -17,14 +17,16 @@ To pin a version: append `--version v0.1.0`. Falls back to `~/.local/bin` if it 
 
 ```bash
 sqill init                       # one-time: create .agents/skills/
+sqill search github              # find skills in the registry
 sqill install github-search      # install one
+sqill install                    # install every skill listed in .agents/skills/sqill.json
 sqill list                       # show installed skills
 sqill info github-search         # manifest, source, install metadata
 sqill update github-search       # pull latest
 sqill remove github-search       # uninstall (prompts; --force to skip)
 sqill install my-skill --source git@github.com:you/my-skill.git  # from any git/url
-sqill track github-search        # include the skill's directory in git
-sqill untrack github-search      # exclude the skill's directory from git
+sqill upgrade                    # update the sqill binary itself to the latest release
+sqill --version                  # print the sqill binary version
 ```
 
 ### Version control
