@@ -29,7 +29,7 @@ func New(reg registry.Provider, store metadata.Store, skillsDir string) *Install
 
 func defaultSources() map[source.Type]source.Provider {
 	return map[source.Type]source.Provider{
-		source.TypeGit:     source.NewGit(""),
+		source.TypeGit:     source.NewGit(),
 		source.TypeLocal:   source.NewLocal(),
 		source.TypeArchive: source.NewArchive(),
 	}
@@ -73,6 +73,19 @@ func (i *Installer) Install(name string, force bool) error {
 		return err
 	}
 
+	manifestDir, err := pickManifestDir(target, name)
+	if err != nil {
+		os.RemoveAll(target)
+		return fmt.Errorf("validate manifest: %w", err)
+	}
+	if manifestDir != target {
+		if err := utils.MoveContents(manifestDir, target); err != nil {
+			os.RemoveAll(target)
+			return fmt.Errorf("flatten subdir: %w", err)
+		}
+		os.RemoveAll(manifestDir)
+	}
+
 	manifest, err := metadata.LoadManifest(target)
 	if err != nil {
 		os.RemoveAll(target)
@@ -100,11 +113,26 @@ func (i *Installer) SkillDir(name string) string {
 	return filepath.Join(i.skillsDir, name)
 }
 
+func pickManifestDir(target, skillName string) (string, error) {
+	candidates := []string{
+		target,
+		filepath.Join(target, skillName),
+		filepath.Join(target, "skill"),
+		filepath.Join(target, "sqill"),
+	}
+	for _, c := range candidates {
+		if _, err := os.Stat(filepath.Join(c, "sqill.json")); err == nil {
+			return c, nil
+		}
+	}
+	return "", fmt.Errorf("read manifest: %s: no such file or directory", filepath.Join(target, "sqill.json"))
+}
+
 func (i *Installer) getSources() map[source.Type]source.Provider {
 	if i.sources == nil {
 		i.sources = defaultSources()
 		return i.sources
 	}
-	i.sources[source.TypeGit] = source.NewGit("")
+	i.sources[source.TypeGit] = source.NewGit()
 	return i.sources
 }
