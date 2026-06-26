@@ -14,7 +14,6 @@ To pin a version: append `--version v0.1.0`. Falls back to `~/.local/bin` if it 
 
 ```bash
 sqill init                       # one-time: create .agents/skills/
-sqill search github              # find skills in the registry
 sqill install github-search      # install one
 sqill list                       # show installed skills
 sqill info github-search         # manifest, source, install metadata

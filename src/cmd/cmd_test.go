@@ -215,52 +215,6 @@ func TestListShowsInstalledSkills(t *testing.T) {
 	}
 }
 
-func TestSearchShowsNoMatches(t *testing.T) {
-	skills := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(skills, ".agents", "skills"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(skills, ".agents", "skills", metadata.StateFileName), []byte(`{"installed":{},"registries":[]}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	root := NewRoot()
-	buf := &bytes.Buffer{}
-	root.SetOut(buf)
-	root.SetErr(buf)
-	root.SetArgs([]string{"--skills-dir", filepath.Join(skills, ".agents", "skills"), "search", "nosuchskill"})
-	if err := root.Execute(); err != nil {
-		t.Fatal(err)
-	}
-	got := buf.String()
-	if !strings.Contains(got, "No matches") {
-		t.Fatalf("expected 'No matches', got %q", got)
-	}
-}
-
-func TestSearchFindsMatch(t *testing.T) {
-	skills := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(skills, ".agents", "skills"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(skills, ".agents", "skills", metadata.StateFileName), []byte(`{"installed":{},"registries":[]}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	root := NewRoot()
-	buf := &bytes.Buffer{}
-	root.SetOut(buf)
-	root.SetErr(buf)
-	root.SetArgs([]string{"--skills-dir", filepath.Join(skills, ".agents", "skills"), "search", "sRegressor"})
-	if err := root.Execute(); err != nil {
-		t.Fatal(err)
-	}
-	got := buf.String()
-	if !strings.Contains(got, "sRegressor") {
-		t.Fatalf("expected 'sRegressor', got %q", got)
-	}
-}
-
 func TestInfoRequiresNameArg(t *testing.T) {
 	skills := t.TempDir()
 	if err := os.MkdirAll(skills, 0o755); err != nil {

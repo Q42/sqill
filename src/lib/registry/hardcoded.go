@@ -27,17 +27,6 @@ func NewHardcoded() *Hardcoded {
 	return &Hardcoded{entries: entries}
 }
 
-func (h *Hardcoded) Search(query string) []SkillEntry {
-	var out []SkillEntry
-	for _, e := range h.entries {
-		if match(e, query) {
-			out = append(out, e)
-		}
-	}
-	sortEntries(out)
-	return out
-}
-
 func (h *Hardcoded) Resolve(name string) (SkillEntry, error) {
 	e, ok := h.entries[strings.TrimSpace(name)]
 	if !ok {
