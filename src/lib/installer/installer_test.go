@@ -30,10 +30,6 @@ type fakeReg struct {
 	desc   string
 }
 
-func (f *fakeReg) Search(q string) []registry.SkillEntry {
-	return []registry.SkillEntry{{Name: "x", Source: f.source, Description: f.desc}}
-}
-
 func (f *fakeReg) Resolve(n string) (registry.SkillEntry, error) {
 	return registry.SkillEntry{Name: n, Source: f.source, Description: f.desc}, nil
 }

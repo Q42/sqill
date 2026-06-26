@@ -138,6 +138,10 @@ func run(cmd *cobra.Command, opts *Options) error {
 	for _, t := range planned {
 		fmt.Fprintf(out, "  • %s\n", t.label)
 	}
+
+	if err := metadata.SyncGitignore(skillsDir); err != nil {
+		return fmt.Errorf("sync gitignore: %w", err)
+	}
 	return nil
 }
 

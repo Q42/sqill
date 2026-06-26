@@ -9,6 +9,8 @@ import (
 	"sort"
 	"sync"
 	"time"
+
+	"sqill/src/lib/utils"
 )
 
 const StateFileName = "sqill.json"
@@ -30,12 +32,14 @@ type InstalledEntry struct {
 type State struct {
 	Installed  map[string]InstalledEntry `json:"installed"`
 	Registries []string                  `json:"registries"`
+	Tracked    []string                  `json:"tracked,omitempty"`
 }
 
 func NewState() State {
 	return State{
 		Installed:  map[string]InstalledEntry{},
 		Registries: []string{},
+		Tracked:    []string{},
 	}
 }
 
@@ -46,6 +50,9 @@ type Store interface {
 	Get(name string) (InstalledEntry, error)
 	Add(name string, entry InstalledEntry) error
 	Remove(name string) error
+	Track(name string) error
+	Untrack(name string) error
+	IsTracked(name string) bool
 	Path() string
 }
 
@@ -93,6 +100,9 @@ func (s *FileStore) Load() (State, error) {
 	if state.Registries == nil {
 		state.Registries = []string{}
 	}
+	if state.Tracked == nil {
+		state.Tracked = []string{}
+	}
 	return state, nil
 }
 
@@ -105,6 +115,9 @@ func (s *FileStore) Save(state State) error {
 	}
 	if state.Registries == nil {
 		state.Registries = []string{}
+	}
+	if state.Tracked == nil {
+		state.Tracked = []string{}
 	}
 
 	if err := os.MkdirAll(s.dir, 0o755); err != nil {
@@ -180,7 +193,49 @@ func (s *FileStore) Remove(name string) error {
 		return fmt.Errorf("skill %q not installed", name)
 	}
 	delete(state.Installed, name)
+	state.Tracked = removeString(state.Tracked, name)
 	return s.Save(state)
+}
+
+func (s *FileStore) Track(name string) error {
+	if err := utils.ValidateName(name); err != nil {
+		return err
+	}
+	if !s.IsInstalled(name) {
+		return fmt.Errorf("skill %q not installed", name)
+	}
+	state, err := s.Load()
+	if err != nil {
+		return err
+	}
+	if containsString(state.Tracked, name) {
+		return nil
+	}
+	state.Tracked = append(state.Tracked, name)
+	return s.Save(state)
+}
+
+func (s *FileStore) Untrack(name string) error {
+	if err := utils.ValidateName(name); err != nil {
+		return err
+	}
+	state, err := s.Load()
+	if err != nil {
+		return err
+	}
+	if !containsString(state.Tracked, name) {
+		return nil
+	}
+	state.Tracked = removeString(state.Tracked, name)
+	return s.Save(state)
+}
+
+func (s *FileStore) IsTracked(name string) bool {
+	state, err := s.Load()
+	if err != nil {
+		return false
+	}
+	return containsString(state.Tracked, name)
 }
 
 func LoadManifest(dir string) (Manifest, error) {
@@ -237,4 +292,94 @@ func SortedNames(state State) []string {
 	}
 	sort.Strings(names)
 	return names
+}
+
+const GitignoreFileName = ".gitignore"
+
+var gitignoreHeader = "# Managed by sqill — skills listed below are NOT tracked in git.\n" +
+	"# Use `sqill track <name>` to include a skill in version control.\n"
+
+func SyncGitignore(skillsDir string) error {
+	store, err := NewFileStore(skillsDir)
+	if err != nil {
+		return err
+	}
+	state, err := store.Load()
+	if err != nil {
+		return err
+	}
+
+	tracked := make(map[string]struct{}, len(state.Tracked))
+	for _, n := range state.Tracked {
+		tracked[n] = struct{}{}
+	}
+
+	var ignored []string
+	for _, n := range SortedNames(state) {
+		if _, ok := tracked[n]; ok {
+			continue
+		}
+		if !validGitignoreEntry(n) {
+			continue
+		}
+		ignored = append(ignored, n)
+	}
+
+	if err := os.MkdirAll(skillsDir, 0o755); err != nil {
+		return fmt.Errorf("create skills dir: %w", err)
+	}
+
+	var content string
+	if len(ignored) == 0 {
+		content = gitignoreHeader
+	} else {
+		content = gitignoreHeader
+		for _, n := range ignored {
+			content += n + "/\n"
+		}
+	}
+
+	tmp, err := os.CreateTemp(skillsDir, ".sqill-gitignore-*.tmp")
+	if err != nil {
+		return fmt.Errorf("create temp gitignore: %w", err)
+	}
+	tmpName := tmp.Name()
+	if _, err := tmp.WriteString(content); err != nil {
+		tmp.Close()
+		os.Remove(tmpName)
+		return fmt.Errorf("write temp gitignore: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		os.Remove(tmpName)
+		return fmt.Errorf("close temp gitignore: %w", err)
+	}
+	dst := filepath.Join(skillsDir, GitignoreFileName)
+	if err := os.Rename(tmpName, dst); err != nil {
+		os.Remove(tmpName)
+		return fmt.Errorf("rename gitignore: %w", err)
+	}
+	return nil
+}
+
+func validGitignoreEntry(name string) bool {
+	return utils.ValidateName(name) == nil
+}
+
+func containsString(list []string, s string) bool {
+	for _, v := range list {
+		if v == s {
+			return true
+		}
+	}
+	return false
+}
+
+func removeString(list []string, s string) []string {
+	out := list[:0]
+	for _, v := range list {
+		if v != s {
+			out = append(out, v)
+		}
+	}
+	return out
 }

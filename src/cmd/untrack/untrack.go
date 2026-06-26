@@ -1,4 +1,4 @@
-package remove
+package untrack
 
 import (
 	"fmt"
@@ -11,17 +11,19 @@ import (
 
 func NewCmd(rt *runtime.Runtime) *cobra.Command {
 	return &cobra.Command{
-		Use:   "remove <name>",
-		Short: "Delete an installed skill and its metadata",
+		Use:   "untrack <name>",
+		Short: "Exclude an installed skill's directory from git",
+		Long:  "Adds the skill's directory to .agents/skills/.gitignore so it is not committed. Idempotent: untracking a skill that is not currently tracked is a no-op.",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := rt.Inst.Remove(args[0]); err != nil {
+			name := args[0]
+			if err := rt.Store.Untrack(name); err != nil {
 				return err
 			}
 			if err := metadata.SyncGitignore(rt.SkillsDir); err != nil {
 				return fmt.Errorf("sync gitignore: %w", err)
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Removed %s\n", args[0])
+			fmt.Fprintf(cmd.OutOrStdout(), "Untracked %s\n", name)
 			return nil
 		},
 	}

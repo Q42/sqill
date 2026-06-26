@@ -13,8 +13,10 @@ import (
 	"sqill/src/cmd/install"
 	"sqill/src/cmd/list"
 	"sqill/src/cmd/remove"
-	"sqill/src/cmd/search"
+	"sqill/src/cmd/track"
+	"sqill/src/cmd/untrack"
 	"sqill/src/cmd/update"
+	"sqill/src/cmd/upgrade"
 	"sqill/src/lib/buildinfo"
 	"sqill/src/lib/metadata"
 	"sqill/src/lib/runtime"
@@ -25,6 +27,7 @@ func NewRoot() *cobra.Command {
 		Use:           "sqill",
 		Short:         "Agent skill registry CLI",
 		Long:          "Sqill installs, updates, removes, and discovers agent skills.",
+		Version:       buildinfo.Version,
 		SilenceUsage:  true,
 		SilenceErrors: false,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -45,8 +48,10 @@ func NewRoot() *cobra.Command {
 		remove.NewCmd(rt),
 		update.NewCmd(rt),
 		list.NewCmd(rt),
-		search.NewCmd(rt),
 		info.NewCmd(rt),
+		track.NewCmd(rt),
+		untrack.NewCmd(rt),
+		upgrade.NewCmd(),
 	} {
 		r.AddCommand(sub)
 	}
@@ -83,7 +88,7 @@ func NewRoot() *cobra.Command {
 
 func requiresInitializedState(cmd *cobra.Command) bool {
 	switch cmd.Name() {
-	case "init", "help", "completion":
+	case "init", "help", "completion", "upgrade":
 		return false
 	}
 	return true
