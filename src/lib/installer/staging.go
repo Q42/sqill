@@ -41,6 +41,11 @@ func (i *Installer) fetchAndStage(name, src, dest string) (metadata.Manifest, er
 		os.RemoveAll(manifestDir)
 	}
 
+	if err := utils.StripGitDirs(dest); err != nil {
+		os.RemoveAll(dest)
+		return metadata.Manifest{}, fmt.Errorf("strip .git: %w", err)
+	}
+
 	manifest, err := metadata.LoadManifest(dest)
 	if err != nil {
 		os.RemoveAll(dest)

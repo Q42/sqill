@@ -13,7 +13,7 @@ func NewCmd(rt *runtime.Runtime) *cobra.Command {
 	var force bool
 	cmd := &cobra.Command{
 		Use:   "install [<name>]",
-		Short: "Install a skill, or all skills tracked in sqill.json if no name is given",
+		Short: "Install a skill, or all installed skills if no name is given",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
@@ -45,6 +45,10 @@ func NewCmd(rt *runtime.Runtime) *cobra.Command {
 
 			var failed []string
 			for _, name := range names {
+				if rt.Store.IsInstalled(name) {
+					fmt.Fprintf(out, "%s is already up to date\n", name)
+					continue
+				}
 				if err := installOne(name); err != nil {
 					fmt.Fprintf(out, "Failed %s: %v\n", name, err)
 					failed = append(failed, name)

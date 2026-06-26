@@ -1,6 +1,7 @@
 package metadata
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -137,8 +138,11 @@ func TestFileStoreTrackUntrack(t *testing.T) {
 	}
 
 	state, _ := s.Load()
-	if len(state.Tracked) != 1 || state.Tracked[0] != "foo" {
-		t.Fatalf("expected tracked=[foo], got %v", state.Tracked)
+	if !state.Installed["foo"].Tracked {
+		t.Fatalf("expected foo.Tracked=true, got %+v", state.Installed["foo"])
+	}
+	if state.Installed["bar"].Tracked {
+		t.Fatalf("expected bar.Tracked=false, got %+v", state.Installed["bar"])
 	}
 
 	if err := s.Untrack("foo"); err != nil {
@@ -149,6 +153,41 @@ func TestFileStoreTrackUntrack(t *testing.T) {
 	}
 	if err := s.Untrack("foo"); err != nil {
 		t.Fatalf("untracking untracked skill should be idempotent, got %v", err)
+	}
+}
+
+func TestFileStoreSaveAlwaysEmitsTracked(t *testing.T) {
+	dir := t.TempDir()
+	s, _ := NewFileStore(dir)
+	_ = s.Add("foo", InstalledEntry{Version: "1.0.0"})
+	_ = s.Track("bar")
+
+	data, err := os.ReadFile(filepath.Join(dir, StateFileName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var parsed struct {
+		Installed map[string]InstalledEntry `json:"installed"`
+	}
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		t.Fatal(err)
+	}
+	raw := string(data)
+	for _, name := range []string{"foo", "bar"} {
+		if !strings.Contains(raw, `"`+name+`"`) {
+			continue
+		}
+		if !strings.Contains(raw, `"tracked":`) {
+			t.Fatalf("expected `tracked` key present for %s, got %s", name, raw)
+		}
+	}
+}
+
+func TestFileStoreUntrackRejectsMissing(t *testing.T) {
+	dir := t.TempDir()
+	s, _ := NewFileStore(dir)
+	if err := s.Untrack("missing"); err == nil {
+		t.Fatal("expected error untracking non-installed skill")
 	}
 }
 
@@ -178,9 +217,8 @@ func TestFileStoreRemoveClearsTracked(t *testing.T) {
 	if err := s.Remove("foo"); err != nil {
 		t.Fatal(err)
 	}
-	state, _ := s.Load()
-	if len(state.Tracked) != 0 {
-		t.Fatalf("expected tracked to be empty after remove, got %v", state.Tracked)
+	if s.IsTracked("foo") {
+		t.Fatal("foo should not be tracked after remove")
 	}
 }
 
@@ -250,7 +288,7 @@ func TestSyncGitignoreSkipsUnknownTracked(t *testing.T) {
 	dir := t.TempDir()
 	s, _ := NewFileStore(dir)
 	state, _ := s.Load()
-	state.Tracked = []string{"ghost"}
+	state.Installed["ghost"] = InstalledEntry{Version: "0.0.0", Tracked: true}
 	if err := s.Save(state); err != nil {
 		t.Fatal(err)
 	}
@@ -260,5 +298,24 @@ func TestSyncGitignoreSkipsUnknownTracked(t *testing.T) {
 	data, _ := os.ReadFile(filepath.Join(dir, GitignoreFileName))
 	if strings.Contains(string(data), "ghost") {
 		t.Fatalf("tracked-but-uninstalled skill should not appear, got %q", string(data))
+	}
+}
+
+func TestFileStoreLoadMigratesLegacyTracked(t *testing.T) {
+	dir := t.TempDir()
+	legacy := `{"installed":{"a":{"version":"1.0.0","source":"x","installed_at":"now"},"b":{"version":"1.0.0","source":"y","installed_at":"now"}},"registries":[],"tracked":["a"]}`
+	if err := os.WriteFile(filepath.Join(dir, StateFileName), []byte(legacy), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s, _ := NewFileStore(dir)
+	state, err := s.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !state.Installed["a"].Tracked {
+		t.Fatal("a should be tracked after migration")
+	}
+	if state.Installed["b"].Tracked {
+		t.Fatal("b should not be tracked after migration")
 	}
 }

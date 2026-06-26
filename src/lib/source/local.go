@@ -80,6 +80,9 @@ func copyTree(src, dst string) error {
 		s := filepath.Join(src, entry.Name())
 		d := filepath.Join(dst, entry.Name())
 		if entry.IsDir() {
+			if entry.Name() == ".git" {
+				continue
+			}
 			if err := copyTree(s, d); err != nil {
 				return err
 			}

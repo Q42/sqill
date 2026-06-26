@@ -17,13 +17,18 @@ func NewCmd(rt *runtime.Runtime) *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
+			out := cmd.OutOrStdout()
+			if !rt.Store.IsTracked(name) {
+				fmt.Fprintf(out, "%s is already untracked\n", name)
+				return nil
+			}
 			if err := rt.Store.Untrack(name); err != nil {
 				return err
 			}
 			if err := metadata.SyncGitignore(rt.SkillsDir); err != nil {
 				return fmt.Errorf("sync gitignore: %w", err)
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Untracked %s\n", name)
+			fmt.Fprintf(out, "Untracked %s\n", name)
 			return nil
 		},
 	}

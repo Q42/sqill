@@ -120,6 +120,27 @@ func MoveContents(src, dst string) error {
 	return nil
 }
 
+func StripGitDirs(root string) error {
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return fmt.Errorf("read dir: %w", err)
+	}
+	for _, e := range entries {
+		if e.Name() == ".git" {
+			if err := os.RemoveAll(filepath.Join(root, e.Name())); err != nil {
+				return fmt.Errorf("remove .git: %w", err)
+			}
+			continue
+		}
+		if e.IsDir() {
+			if err := StripGitDirs(filepath.Join(root, e.Name())); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func ValidateName(name string) error {
 	if name == "" {
 		return errors.New("skill name is empty")

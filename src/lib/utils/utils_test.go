@@ -103,6 +103,41 @@ func TestFindDuplicates(t *testing.T) {
 	}
 }
 
+func TestStripGitDirs(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, ".git", "objects"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, ".git", "HEAD"), []byte("ref"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "sub", ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "keep.txt"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "sub", "sub.txt"), []byte("y"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := StripGitDirs(dir); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".git")); !os.IsNotExist(err) {
+		t.Fatalf("expected .git removed at root: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "sub", ".git")); !os.IsNotExist(err) {
+		t.Fatalf("expected .git removed in subdir: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "keep.txt")); err != nil {
+		t.Fatalf("expected keep.txt preserved: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "sub", "sub.txt")); err != nil {
+		t.Fatalf("expected sub/sub.txt preserved: %v", err)
+	}
+}
+
 func TestMoveContents(t *testing.T) {
 	src := t.TempDir()
 	dst := t.TempDir()

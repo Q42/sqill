@@ -27,19 +27,18 @@ type InstalledEntry struct {
 	Source      string `json:"source"`
 	InstalledAt string `json:"installed_at"`
 	Description string `json:"description,omitempty"`
+	Tracked     bool   `json:"tracked"`
 }
 
 type State struct {
 	Installed  map[string]InstalledEntry `json:"installed"`
 	Registries []string                  `json:"registries"`
-	Tracked    []string                  `json:"tracked,omitempty"`
 }
 
 func NewState() State {
 	return State{
 		Installed:  map[string]InstalledEntry{},
 		Registries: []string{},
-		Tracked:    []string{},
 	}
 }
 
@@ -90,20 +89,29 @@ func (s *FileStore) Load() (State, error) {
 		return NewState(), nil
 	}
 
-	var state State
-	if err := json.Unmarshal(data, &state); err != nil {
+	var legacy struct {
+		Installed  map[string]InstalledEntry `json:"installed"`
+		Registries []string                  `json:"registries"`
+		Tracked    []string                  `json:"tracked,omitempty"`
+	}
+	if err := json.Unmarshal(data, &legacy); err != nil {
 		return State{}, fmt.Errorf("parse state: %w", err)
 	}
-	if state.Installed == nil {
-		state.Installed = map[string]InstalledEntry{}
+	if legacy.Installed == nil {
+		legacy.Installed = map[string]InstalledEntry{}
 	}
-	if state.Registries == nil {
-		state.Registries = []string{}
+	if legacy.Registries == nil {
+		legacy.Registries = []string{}
 	}
-	if state.Tracked == nil {
-		state.Tracked = []string{}
+	for _, name := range legacy.Tracked {
+		entry, ok := legacy.Installed[name]
+		if !ok {
+			continue
+		}
+		entry.Tracked = true
+		legacy.Installed[name] = entry
 	}
-	return state, nil
+	return State{Installed: legacy.Installed, Registries: legacy.Registries}, nil
 }
 
 func (s *FileStore) Save(state State) error {
@@ -115,9 +123,6 @@ func (s *FileStore) Save(state State) error {
 	}
 	if state.Registries == nil {
 		state.Registries = []string{}
-	}
-	if state.Tracked == nil {
-		state.Tracked = []string{}
 	}
 
 	if err := os.MkdirAll(s.dir, 0o755); err != nil {
@@ -193,11 +198,30 @@ func (s *FileStore) Remove(name string) error {
 		return fmt.Errorf("skill %q not installed", name)
 	}
 	delete(state.Installed, name)
-	state.Tracked = removeString(state.Tracked, name)
 	return s.Save(state)
 }
 
 func (s *FileStore) Track(name string) error {
+	if err := utils.ValidateName(name); err != nil {
+		return err
+	}
+	state, err := s.Load()
+	if err != nil {
+		return err
+	}
+	entry, ok := state.Installed[name]
+	if !ok {
+		return fmt.Errorf("skill %q not installed", name)
+	}
+	if entry.Tracked {
+		return nil
+	}
+	entry.Tracked = true
+	state.Installed[name] = entry
+	return s.Save(state)
+}
+
+func (s *FileStore) Untrack(name string) error {
 	if err := utils.ValidateName(name); err != nil {
 		return err
 	}
@@ -208,25 +232,12 @@ func (s *FileStore) Track(name string) error {
 	if err != nil {
 		return err
 	}
-	if containsString(state.Tracked, name) {
+	entry := state.Installed[name]
+	if !entry.Tracked {
 		return nil
 	}
-	state.Tracked = append(state.Tracked, name)
-	return s.Save(state)
-}
-
-func (s *FileStore) Untrack(name string) error {
-	if err := utils.ValidateName(name); err != nil {
-		return err
-	}
-	state, err := s.Load()
-	if err != nil {
-		return err
-	}
-	if !containsString(state.Tracked, name) {
-		return nil
-	}
-	state.Tracked = removeString(state.Tracked, name)
+	entry.Tracked = false
+	state.Installed[name] = entry
 	return s.Save(state)
 }
 
@@ -235,7 +246,7 @@ func (s *FileStore) IsTracked(name string) bool {
 	if err != nil {
 		return false
 	}
-	return containsString(state.Tracked, name)
+	return state.Installed[name].Tracked
 }
 
 func LoadManifest(dir string) (Manifest, error) {
@@ -309,14 +320,9 @@ func SyncGitignore(skillsDir string) error {
 		return err
 	}
 
-	tracked := make(map[string]struct{}, len(state.Tracked))
-	for _, n := range state.Tracked {
-		tracked[n] = struct{}{}
-	}
-
 	var ignored []string
 	for _, n := range SortedNames(state) {
-		if _, ok := tracked[n]; ok {
+		if state.Installed[n].Tracked {
 			continue
 		}
 		if !validGitignoreEntry(n) {
@@ -363,23 +369,4 @@ func SyncGitignore(skillsDir string) error {
 
 func validGitignoreEntry(name string) bool {
 	return utils.ValidateName(name) == nil
-}
-
-func containsString(list []string, s string) bool {
-	for _, v := range list {
-		if v == s {
-			return true
-		}
-	}
-	return false
-}
-
-func removeString(list []string, s string) []string {
-	out := list[:0]
-	for _, v := range list {
-		if v != s {
-			out = append(out, v)
-		}
-	}
-	return out
 }

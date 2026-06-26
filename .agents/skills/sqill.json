@@ -4,7 +4,8 @@
       "version": "0.1.0",
       "source": "https://github.com/Q42/q-release.git",
       "installed_at": "2026-06-26T11:43:20Z",
-      "description": "Create a GitHub release from the git diff since the last release with standardized notes."
+      "description": "Create a GitHub release from the git diff since the last release with standardized notes.",
+      "tracked": false
     }
   },
   "registries": []

@@ -76,14 +76,13 @@ go vet ./...                      # lint
 ```json
 {
   "installed": {
-    "<name>": { "version": "...", "source": "...", "installed_at": "..." }
+    "<name>": { "version": "...", "source": "...", "installed_at": "...", "tracked": true }
   },
-  "registries": [],
-  "tracked": ["<name>"]
+  "registries": []
 }
 ```
 
-`tracked` is the explicit allowlist of skill directories included in git. When absent or empty, every installed skill is listed in `.agents/skills/.gitignore` (default behavior). `sqill track <name>` adds `<name>`; `sqill untrack <name>` removes it. `.gitignore` is regenerated on every `init`, `install`, `remove`, `track`, and `untrack`.
+`tracked` on an installed entry marks its directory for inclusion in git. When `false` or absent, the skill is listed in `.agents/skills/.gitignore` (default behavior). `sqill track <name>` sets it to `true`; `sqill untrack <name>` sets it to `false`. `.gitignore` is regenerated on every `init`, `install`, `remove`, `track`, and `untrack`. On load, an old top-level `"tracked": ["<name>"]` array is migrated into the per-entry `tracked` flag.
 
 ### Registry (in binary)
 

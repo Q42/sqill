@@ -68,6 +68,33 @@ func TestLocalFetch(t *testing.T) {
 	}
 }
 
+func TestLocalFetchSkipsGit(t *testing.T) {
+	src := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(src, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(src, ".git", "HEAD"), []byte("ref"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(src, "hello.txt"), []byte("hi"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	parent := t.TempDir()
+	dest := filepath.Join(parent, "out")
+	l := NewLocal()
+	if err := l.Fetch("file://"+src, dest); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := os.Stat(filepath.Join(dest, ".git")); !os.IsNotExist(err) {
+		t.Fatalf("expected .git to be skipped: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dest, "hello.txt")); err != nil {
+		t.Fatalf("missing hello.txt: %v", err)
+	}
+}
+
 func TestLocalFetchRejectsFile(t *testing.T) {
 	src := t.TempDir()
 	f := filepath.Join(src, "a.txt")
