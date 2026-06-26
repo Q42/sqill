@@ -1,7 +1,8 @@
 # AGENTS.md — Agent Instructions for Sqill
 
-For any new behaviour requested by the user, update the readme to cover that. Consider it a source of truth.
-Also update the AGENTS.md periodically with information.
+- `README.md` is for **end users only**: install, usage, build, source layout. Never add contributor workflow, release process, agent internals, or internal conventions there.
+- `AGENTS.md` (this file) is the source of truth for development workflow, release process, and agent behavior. Update it whenever a new convention is introduced.
+- For any **user-facing behavior** change, also update `README.md`.
 
 ## Project overview
 
@@ -48,7 +49,10 @@ go vet ./...                      # lint
 | `src/lib/registry/hardcoded.go`               | Hardcoded `map[string]string` of skill name → source URL              |
 | `src/lib/metadata/store.go`                   | Read/write `.agents/skills/sqill.json`                                |
 | `src/lib/installer/installer.go`              | Orchestrate resolve → fetch → validate → install → write metadata     |
-| `src/lib/utils/utils.go`                       | Shared helpers (path display, validation, safe join, dedup)           |
+| `src/lib/utils/utils.go`                       | Shared helpers (path display, validation, safe join, dedup)        |
+| `.github/workflows/release.yml`                | Tag-triggered release: build for macOS/Linux × amd64/arm64, publish release with body from `.github/release-notes/v<tag>.md` |
+| `.github/release-notes/vX.Y.Z.md`              | Curated release notes for tag `vX.Y.Z`, rendered by the `q-release` skill |
+| `.agents/skills/q-release/`                    | Installed (gitignored) `q-release` skill — walks Conventional Commits since the last published tag and produces the next release's notes file |
 
 ## Data model
 
@@ -90,6 +94,24 @@ var defaultRegistry = map[string]string{
 | `git@`, `https://...git` | `GitSourceProvider` (go-git clone)           |
 | `file://`                | `LocalSourceProvider` (recursive copy)       |
 | `https://...tar.gz`      | `ArchiveSourceProvider` (download + extract) |
+
+## Release workflow
+
+Tag-triggered CI publishes binaries and a GitHub release. The release body comes from a file in this repo, not from GitHub's auto-generator.
+
+### Flow
+
+1. Use the `q-release` skill to render notes into `.github/release-notes/vX.Y.Z.md` (categorized by Conventional Commits prefix).
+2. Commit the notes file on the default branch and push.
+3. Create and push the tag: `git tag -a vX.Y.Z -m vX.Y.Z && git push origin vX.Y.Z`.
+4. `.github/workflows/release.yml` builds artifacts and creates the release, reading the body from `.github/release-notes/<tag>.md` via `softprops/action-gh-release@v2`'s `body_path`.
+
+### Hard rules
+
+- **Never** set `generate_release_notes: true` on the workflow — it overwrites the curated body.
+- **Never** call `gh release create` after pushing the tag — the workflow owns release creation. To re-sync notes after the fact, use `gh release edit <tag> --notes-file .github/release-notes/<tag>.md` (do **not** use `--notes -`, which silently no-ops in `gh release edit`).
+- The notes file must be committed on the default branch **before** the tag is created, so the workflow checkout at the tag SHA sees it.
+- Do not write release-related scratch files to `/tmp` or `os.TempDir()` — they sit outside the project and trip permission checks. Use files inside the project tree (e.g. `.github/release-notes/`) or pipe via heredoc into `gh`/`git`.
 
 ## Safety invariants
 
