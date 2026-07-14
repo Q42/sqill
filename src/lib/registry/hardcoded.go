@@ -3,15 +3,20 @@ package registry
 import "strings"
 
 var defaultRegistry = map[string]SkillEntry{
-	"sRegressor": {
-		Name:        "sRegressor",
-		Source:      "https://github.com/Q42/sRegressor.git",
+	"s-regressor": {
+		Name:        "s-regressor",
+		Source:      "https://github.com/Q42/sqill-s-regressor.git",
 		Description: "Run regression tests directly in your project.",
 	},
 	"q-release": {
 		Name:        "q-release",
-		Source:      "https://github.com/Q42/q-release.git",
+		Source:      "https://github.com/Q42/sqill-q-release.git",
 		Description: "Create a GitHub release from the git diff since the last release with standardized notes.",
+	},
+	"read-sanity": {
+		Name:        "read-sanity",
+		Source:      "https://github.com/Q42/sqill-read-sanity.git",
+		Description: "Read data from a sanity environment to use it for investigation and debugging.",
 	},
 }
 
