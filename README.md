@@ -1,7 +1,7 @@
 # sqill
 
 > **⚠️ The registry of installable skills is hardcoded into the binary.**
-> Adding a new skill today requires editing `src/lib/registry/hardcoded.go` and shipping a new release of sqill itself. There is no external registry, no pluggable source, and no way for end users to add skills to the catalog without recompiling. Skills can still be installed ad hoc via `sqill install <name> --source <url>`, but the curated registry ships in-binary.
+> Adding a new skill today requires editing `src/lib/registry/hardcoded.go` and shipping a new release of sqill itself. There is no external registry, no pluggable source, and no way for end users to add skills to the catalog without recompiling.
 
 A CLI for installing and managing [agent skills](https://kilo.ai/docs) — reusable bundles of prompts, templates, and tools that extend AI agents.
 
@@ -16,18 +16,29 @@ To pin a version: append `--version v0.1.0`. Falls back to `~/.local/bin` if it 
 ## Usage
 
 ```bash
-sqill init                       # one-time: create .agents/skills/
-sqill search github              # find skills in the registry
-sqill install github-search      # install one
-sqill install                    # install every skill listed in .agents/skills/sqill.json
-sqill list                       # show installed skills
-sqill info github-search         # manifest, source, install metadata
-sqill update github-search       # pull latest
-sqill remove github-search       # uninstall (prompts; --force to skip)
-sqill install my-skill --source git@github.com:you/my-skill.git  # from any git/url
-sqill upgrade                    # update the sqill binary itself to the latest release
-sqill --version                  # print the sqill binary version
+sqill init                     # one-time: create .agents/skills/ + symlink prompts
+sqill install q-release        # install one skill from the built-in registry
+sqill install                  # install every skill listed in .agents/skills/sqill.json
+sqill list                     # show installed skills (name, version, install date)
+sqill info q-release           # manifest, source, install metadata
+sqill update q-release         # fetch latest and replace atomically
+sqill remove q-release         # uninstall a skill
+sqill track q-release          # include a skill's directory in git
+sqill untrack q-release        # gitignore a skill's directory (default)
+sqill upgrade                  # self-update the sqill binary to the latest release
+sqill --version                # print the sqill binary version
 ```
+
+### Flag reference
+
+| Flag                       | Commands           | Effect                                           |
+| -------------------------- | ------------------ | ------------------------------------------------ |
+| `--skills-dir <path>`      | All                | Override the skills directory (default `.agents/skills`) |
+| `--yes` / `-y`             | `init`             | Skip interactive prompts, no symlinks created     |
+| `--link-claude`            | `init`             | Symlink `.claude/skills` into `.agents/skills`    |
+| `--link-cursor`            | `init`             | Symlink `.cursor/skills` into `.agents/skills`    |
+| `--link-kilo`              | `init`             | Symlink `.kilo/skills` into `.agents/skills`      |
+| `--force`                  | `install`, `upgrade` | Overwrite existing install or reinstall same version |
 
 ### Version control
 
@@ -44,13 +55,6 @@ Sqill is a thin wrapper around standard tools — it does no networking or authe
 - **Archive sources** are downloaded over HTTPS with Go's standard library.
 
 Because access control is delegated to git, nothing extra is required to install skills from private repos: if `git clone <url>` works in your shell, `sqill install <name>` will work, and any auth prompt (SSH passphrase, GitHub device login, credential helper, …) is the same one git would have shown you directly.
-
-| Flag                       | Effect                                           |
-| -------------------------- | ------------------------------------------------ |
-| `--skills-dir <path>`      | Override the skills directory (default `.agents/skills`) |
-| `--yes` / `-y`             | Skip interactive prompts                         |
-| `--force`                  | Overwrite an existing install                    |
-| `--source <url>`           | Install from a specific git/file/archive URL     |
 
 ## Build a skill
 
@@ -70,8 +74,8 @@ Host it anywhere `sqill` knows how to fetch from:
 
 | Source                      | Notes                                |
 | --------------------------- | ------------------------------------ |
-| `https://.../repo.git`      | Cloned via system `git`              |
-| `git@github.com:.../repo.git` | Same, over SSH                     |
+| `https://.../repo.git`      | Cloned via system `git`            |
+| `git@github.com:.../repo.git` | Same, over SSH                   |
 | `file:///path/to/skill`     | Copied locally                       |
 | `https://.../skill.tar.gz`  | Downloaded and extracted             |
 

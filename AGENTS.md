@@ -1,70 +1,34 @@
 # AGENTS.md — Agent Instructions for Sqill
 
 - `README.md` is for **end users only**: install, usage, build, source layout. Never add contributor workflow, release process, agent internals, or internal conventions there.
-- `AGENTS.md` (this file) is the source of truth for development workflow, release process, and agent behavior. Update it whenever a new convention is introduced.
+- `AGENTS.md` (this file) is the source of truth for development workflow and agent behavior. Update it whenever a new convention is introduced.
+- `ARCHITECTURE.md` documents the project structure and source layout. Update it when the code changes in a way that affects the structural overview.
 - For any **user-facing behavior** change, also update `README.md`.
 
 ## Project overview
 
-Sqill is a Go CLI tool: single static binary, no database, no daemons. It installs skills into `.agents/skills/`, tracks metadata in `.agents/skills/sqill.json`, and resolves skill sources from a hardcoded registry.
+Sqill is a Go CLI tool: single static binary, no database, no daemons. It installs skills into `.agents/skills/`, tracks metadata in a JSON state file, and resolves skill sources from a hardcoded registry.
 
-## Setup workflow
+## Architecture
 
-All commands except `init` require `.agents/skills/sqill.json` to exist. Running `sqill init` will:
+- **Source types**: git (clone via system `git`), local filesystem copy, archive download — auto-detected from the source URL.
+- **Registry**: hardcoded map of skill name → metadata (source URL, description). Resides in the binary; no external registry.
+- **Tracking**: skills are gitignored by default; `track`/`untrack` toggle git inclusion via a per-skill flag. `.gitignore` is regenerated on mutating operations.
+- Build/test: standard Go tooling (`go build`, `go test`, `go vet`).
 
-1. Create `.agents/skills/` and `.agents/skills/sqill.json` if missing (idempotent). If the state file already exists, `init` prints "already initialized" and skips creation.
-2. Optionally symlink `.claude/skills`, `.cursor/skills`, and `.kilo/skills` (siblings of `.agents/`) into `.agents/skills`. The user is prompted per target unless `--yes` is passed or flags pre-select (`--link-claude`, `--link-cursor`, `--link-kilo`); when already initialized, prompting is skipped.
-3. If a target dir already exists, its contents are moved into `.agents/skills/` and the dir is replaced with a symlink. If both directories contain a skill with the same name, `init` fails and asks the user to de-duplicate.
+## Commands
 
-## Build + test
-
-```bash
-go build -o sqill .              # compile binary
-go test ./...                     # run all tests
-go vet ./...                      # lint
-```
-
-## Coding conventions
-
-- **No comments** unless strictly necessary.
-- Standard Go project layout: `src/cmd/` for CLI entry points, `src/lib/` for non-exported packages.
-- Interfaces: `RegistryProvider`, `SourceProvider`, `MetadataStore`.
-- Errors are returned, never panicked, except in `main.go` for fatal startup failures.
-- Zero external configuration needed to run — registry is hardcoded.
-
-## Hard rule: do not touch the git state
-
-The agent is not allowed to run `git add`, `git commit`, `git push`,
-The user manages the git state.
-
-**Exception:** the `q-release` skill is the only context in which the agent may run `git add`, `git commit`, `git push`, and `git tag` — and only for the release notes file and the release tag. No other workflow, fix, or change gets this exception.
-
-## Key files
-
-| File                              | Purpose                                                                                                                                       |
-| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `main.go`                         | Entry point, calls `cmd.Execute()`                                                                                                            |
-| `src/cmd/cmd.go`                  | Root cobra command + subcommand wiring + init guard                                                                                           |
-| `src/cmd/init/init.go`            | `init` command: create state file + tool symlinks                                                                                             |
-| `src/cmd/install/install.go`      | `install [<name>]` command — installs one skill, or all from `sqill.json` when called with no args                                            |
-| `src/cmd/remove/remove.go`        | `remove <name>` command                                                                                                                       |
-| `src/cmd/update/update.go`        | `update <name>` command                                                                                                                       |
-| `src/cmd/list/list.go`            | `list` command                                                                                                                                |
-| `src/cmd/info/info.go`            | `info <name>` command                                                                                                                         |
-| `src/cmd/track/track.go`          | `track <name>` command — include a skill dir in git                                                                                           |
-| `src/cmd/untrack/untrack.go`      | `untrack <name>` command — exclude a skill dir from git                                                                                       |
-| `src/cmd/upgrade/upgrade.go`      | `upgrade` command — replace the running `sqill` binary with the latest release                                                                |
-| `src/lib/runtime/runtime.go`      | Shared `Runtime` struct (skillsDir, store, installer, registry)                                                                               |
-| `src/lib/registry/hardcoded.go`   | Hardcoded `map[string]string` of skill name → source URL                                                                                      |
-| `src/lib/metadata/store.go`       | Read/write `.agents/skills/sqill.json`                                                                                                        |
-| `src/lib/installer/installer.go`  | Orchestrate resolve → fetch → flatten subdir → validate → install/update → write metadata                                                     |
-| `src/lib/installer/staging.go`    | Shared `fetchAndStage` helper used by both `Install` and `Update` (handles subdir flattening)                                                 |
-| `src/lib/upgrader/upgrader.go`    | Self-update logic: resolve latest tag, download tarball, extract binary, replace executable                                                   |
-| `src/lib/buildinfo/buildinfo.go`  | Holds the `Version` variable injected at build time via `-ldflags "-X sqill/src/lib/buildinfo.Version=..."`                                   |
-| `src/lib/utils/utils.go`          | Shared helpers (path display, validation, safe join, dedup)                                                                                   |
-| `.github/workflows/release.yml`   | Tag-triggered release: build for macOS/Linux × amd64/arm64, publish release with body from `.github/release-notes/v<tag>.md`                  |
-| `.github/release-notes/vX.Y.Z.md` | Curated release notes for tag `vX.Y.Z`, rendered by the `q-release` skill                                                                     |
-| `.agents/skills/q-release/`       | Installed (gitignored) `q-release` skill — walks Conventional Commits since the last published tag and produces the next release's notes file |
+| Command   | Signature        | Purpose                                          |
+| --------- | ---------------- | ------------------------------------------------ |
+| `init`    | `init`           | Create `.agents/skills/` and optionally symlink agent tool dirs |
+| `install` | `install [name]` | Install a skill from the registry, or all listed in state |
+| `remove`  | `remove <name>`  | Delete an installed skill and its metadata        |
+| `update`  | `update <name>`  | Fetch latest version and replace atomically       |
+| `list`    | `list`           | Show all installed skills                         |
+| `info`    | `info <name>`    | Display manifest, source, and install metadata    |
+| `track`   | `track <name>`   | Include a skill's directory in git                |
+| `untrack` | `untrack <name>` | Exclude a skill's directory from git              |
+| `upgrade` | `upgrade`        | Self-update `sqill` binary to latest release      |
 
 ## Data model
 
@@ -87,60 +51,32 @@ The user manages the git state.
       "version": "...",
       "source": "...",
       "installed_at": "...",
+      "description": "...",
       "tracked": true
     }
-  },
-  "registries": []
+  }
 }
 ```
 
-`tracked` on an installed entry marks its directory for inclusion in git. When `false` or absent, the skill is listed in `.agents/skills/.gitignore` (default behavior). `sqill track <name>` sets it to `true`; `sqill untrack <name>` sets it to `false`. `.gitignore` is regenerated on every `init`, `install`, `remove`, `track`, and `untrack`. On load, an old top-level `"tracked": ["<name>"]` array is migrated into the per-entry `tracked` flag.
+## Agent rules
 
-### Registry (in binary)
-
-```go
-var defaultRegistry = map[string]string{
-    "github-search": "https://github.com/org/github-search-skill.git",
-    "jira":         "git@github.com:org/jira-skill.git",
-    "postgres":     "file:///opt/skills/postgres",
-}
-```
-
-## Source types
-
-| Prefix                   | Handler                                      |
-| ------------------------ | -------------------------------------------- |
-| `git@`, `https://...git` | `GitSourceProvider` (go-git clone)           |
-| `file://`                | `LocalSourceProvider` (recursive copy)       |
-| `https://...tar.gz`      | `ArchiveSourceProvider` (download + extract) |
-
-## Release workflow
-
-Tag-triggered CI publishes binaries and a GitHub release. The release body comes from a file in this repo, not from GitHub's auto-generator.
-
-### Flow
-
-1. Use the `q-release` skill to render notes into `.github/release-notes/vX.Y.Z.md` (categorized by Conventional Commits prefix).
-2. The user commits the notes file on the default branch and pushes it.
-3. The user creates and pushes the tag: `git tag -a vX.Y.Z -m vX.Y.Z && git push origin vX.Y.Z`.
-4. `.github/workflows/release.yml` builds artifacts and creates the release, reading the body from `.github/release-notes/<tag>.md` via `softprops/action-gh-release@v2`'s `body_path`.
-
-### Hard rules
-
-- **Never** set `generate_release_notes: true` on the workflow — it overwrites the curated body.
-- **Never** call `gh release create` after pushing the tag — the workflow owns release creation. To re-sync notes after the fact, use `gh release edit <tag> --notes-file .github/release-notes/<tag>.md` (do **not** use `--notes -`, which silently no-ops in `gh release edit`).
-- The notes file must be committed on the default branch **before** the tag is created, so the workflow checkout at the tag SHA sees it.
-- Do not write release-related scratch files to `/tmp` or `os.TempDir()` — they sit outside the project and trip permission checks. Use files inside the project tree (e.g. `.github/release-notes/`) or pipe via heredoc into `gh`/`git`.
+- **No comments** in code unless strictly necessary.
+- Errors are returned, never panicked (except fatal startup errors in `main.go`).
+- **Do not touch the git state.** The agent is not allowed to run `git add`, `git commit`, `git push`, or `git tag`. The user manages the git state.
+  - **Exception:** the `q-release` skill may use `git add`, `git commit`, `git push`, and `git tag` — only for release notes and the release tag.
 
 ## Safety invariants
 
-1. Skill name must not contain `..`, `/`, `\`, or start with `.`
-2. Manifest (`sqill.json`) must exist and `name` field must match
-3. Metadata writes are atomic (write to temp, rename)
+1. Skill names must not contain `..`, `/`, `\`, or start with `.`
+2. A skill's manifest (`sqill.json`) must exist and its `name` field must match the directory name
+3. State writes are atomic (write to temp file, rename into place)
+4. Everything lives under `.agents/skills/` — nothing stored outside
 
-## We don't
+## Release workflow
 
-- Store anything outside `.agents/skills/`
-- Require network for `list`, `info`, `remove`
-- Cache downloaded sources (fetched fresh each time)
-- Support version pinning yet (always latest from source)
+Releases are tag-triggered via CI. The release body comes from a curated notes file in the repo (produced by the `q-release` skill), not from GitHub's auto-generator.
+
+- Notes are committed on the default branch before the tag is created.
+- The tag push triggers the CI workflow which builds binaries and publishes the release.
+- Never use `generate_release_notes: true` on the workflow action.
+- Never run `gh release create` after pushing the tag — the workflow owns release creation.
