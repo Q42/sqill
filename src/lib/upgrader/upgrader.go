@@ -80,6 +80,16 @@ func LatestTag(client HTTPDoer, repo string) (string, error) {
 }
 
 func LatestTagAtURL(client HTTPDoer, url string) (string, error) {
+	if c, ok := client.(*http.Client); ok {
+		redirectClient := &http.Client{
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+			Timeout: c.Timeout,
+		}
+		client = redirectClient
+	}
+
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return "", fmt.Errorf("build request: %w", err)
