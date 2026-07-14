@@ -16,6 +16,8 @@ import (
 const StateFileName = "sqill.json"
 const ManifestFileName = "sqill.json"
 
+const DefaultContext = "sqill is a CLI for installing sqills (skills). This file tracks installed skills and their metadata."
+
 type Manifest struct {
 	Name        string `json:"name"`
 	Version     string `json:"version"`
@@ -31,12 +33,14 @@ type InstalledEntry struct {
 }
 
 type State struct {
+	Context    string                    `json:"_context"`
 	Installed  map[string]InstalledEntry `json:"installed"`
 	Registries []string                  `json:"registries"`
 }
 
 func NewState() State {
 	return State{
+		Context:    DefaultContext,
 		Installed:  map[string]InstalledEntry{},
 		Registries: []string{},
 	}
@@ -90,12 +94,16 @@ func (s *FileStore) Load() (State, error) {
 	}
 
 	var legacy struct {
+		Context    string                    `json:"_context"`
 		Installed  map[string]InstalledEntry `json:"installed"`
 		Registries []string                  `json:"registries"`
 		Tracked    []string                  `json:"tracked,omitempty"`
 	}
 	if err := json.Unmarshal(data, &legacy); err != nil {
 		return State{}, fmt.Errorf("parse state: %w", err)
+	}
+	if legacy.Context == "" {
+		legacy.Context = DefaultContext
 	}
 	if legacy.Installed == nil {
 		legacy.Installed = map[string]InstalledEntry{}
@@ -111,13 +119,16 @@ func (s *FileStore) Load() (State, error) {
 		entry.Tracked = true
 		legacy.Installed[name] = entry
 	}
-	return State{Installed: legacy.Installed, Registries: legacy.Registries}, nil
+	return State{Context: legacy.Context, Installed: legacy.Installed, Registries: legacy.Registries}, nil
 }
 
 func (s *FileStore) Save(state State) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if state.Context == "" {
+		state.Context = DefaultContext
+	}
 	if state.Installed == nil {
 		state.Installed = map[string]InstalledEntry{}
 	}

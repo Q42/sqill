@@ -1,4 +1,5 @@
 {
+  "_context": "sqill is a CLI for installing sqills (skills). This file tracks installed skills and their metadata.",
   "installed": {
     "q-release": {
       "version": "0.2.0",
