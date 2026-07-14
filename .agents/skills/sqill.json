@@ -1,9 +1,9 @@
 {
   "installed": {
     "q-release": {
-      "version": "0.1.0",
+      "version": "0.2.0",
       "source": "https://github.com/Q42/q-release.git",
-      "installed_at": "2026-06-26T11:43:20Z",
+      "installed_at": "2026-07-14T09:56:54Z",
       "description": "Create a GitHub release from the git diff since the last release with standardized notes.",
       "tracked": false
     }
